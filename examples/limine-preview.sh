@@ -5,11 +5,14 @@
 # El render es EXACTO: es el mismo bootloader, el mismo wallpaper y la misma
 # paleta. No toca el disco real.
 #
-#   limine-preview                    # usa ~/.config/limine-preview/limine.conf
-#   limine-preview -c /boot/limine.conf
-#   limine-preview --wallpaper /ruta/imagen.png
-#   limine-preview --shot /tmp/shot.png    # captura el framebuffer y sale
-#   limine-preview --gui                    # ventana de QEMU (por defecto)
+#   limine-preview                # preview del menú (lo de siempre)
+#   limine-preview real           # con tu config real de /boot/limine.conf
+#   limine-preview shot           # captura a PNG y sale
+#   limine-preview shot mi.png    # captura a un archivo
+#   limine-preview wall foto.png  # preview con otro wallpaper
+#   limine-preview wallpapers     # regenera las dos versiones del wallpaper
+#   limine-preview setup          # instala dependencias y archivos
+#   limine-preview help           # esta ayuda
 #
 set -euo pipefail
 
@@ -20,7 +23,7 @@ WORK_DIR="${WORK_DIR:-/tmp/limine-preview}"
 # Respeta XDG_CONFIG_HOME, igual que install.sh.
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
 DEFAULT_CONF="$CONFIG_DIR/limine.conf"
-# El wallpaper por defecto es el del repo. Cualquier otro se pasa con -w.
+# El wallpaper por defecto es el del repo. Cualquier otro se pasa con `wall`.
 DEFAULT_WALLPAPER="$CONFIG_DIR/wallpaper/rei.png"
 
 conf="${DEFAULT_CONF}"
@@ -30,35 +33,96 @@ gui=1
 resolution="1920x1080"
 timeout_secs="15"
 real=0
+command="preview"
 
 usage() {
   cat <<'EOF'
-limine-preview — preview real del menú de Limine
+limine-preview — ver el menú de Limine sin reiniciar
 
-  -c, --config <ruta>     Config de Limine a usar (default: ~/.config/limine-preview/limine.conf)
+USO
+  limine-preview [comando] [opciones]
+
+COMANDOS
+  (ninguno)        Preview del menú, con la config de prueba
+  real             Preview con tu config real de /boot/limine.conf
+  shot [archivo]   Captura el menú a un PNG y sale
+  wall <imagen>    Preview con otro wallpaper
+  wallpapers       Regenera las dos versiones del wallpaper (real y difuminada)
+  setup            Instala dependencias y archivos
+  help             Esta ayuda
+
+EJEMPLOS
+  limine-preview
+  limine-preview shot
+  limine-preview wall ~/Pictures/foto.png
+  limine-preview real
+
+OPCIONES AVANZADAS
+  -c, --config <ruta>     Config de Limine a usar
   -w, --wallpaper <ruta>  Wallpaper a incluir en el ISO
-      --real              Usar la config REAL de /boot/limine.conf (lee con sudo)
       --resolution <WxH>  Resolución de la interfaz (default: 1920x1080)
-      --shot <ruta.png>   Captura el framebuffer a PNG y sale (sin ventana)
-      --gui               Abre la ventana de QEMU (por defecto)
       --timeout <seg>     Espera antes de capturar (default: 15)
-  -h, --help              Esta ayuda
 EOF
 }
 
+# ── Dispatch ────────────────────────────────────────────────────────────────
+cmd="${1:-}"
+[[ $# -gt 0 ]] && shift
+
+case "$cmd" in
+  ""|preview)  command="preview" ;;
+  real)        command="preview"; real=1 ;;
+  shot)        command="shot"; gui=0
+                if [[ $# -gt 0 && "$1" != -* ]]; then shot="$1"; shift; fi ;;
+  wall)        command="preview"
+                if [[ $# -lt 1 ]]; then echo "Falta la imagen" >&2; exit 1; fi
+                wallpaper="$1"; shift ;;
+  wallpapers)  command="wallpapers" ;;
+  setup)       command="setup" ;;
+  help|-h|--help) usage; exit 0 ;;
+  *)
+    # Si no es un subcomando conocido, que sea un flag legacy.
+    case "$cmd" in
+      -c|--config|-w|--wallpaper|--resolution|--timeout|--shot|--real|--gui) ;;
+      *) echo "Comando desconocido: $cmd" >&2; usage; exit 1 ;;
+    esac
+    set -- "$cmd" "$@" ;;
+esac
+
+# ── Opciones (comunes a todos los comandos) ─────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -c|--config)     conf="$2"; shift 2 ;;
     -w|--wallpaper)  wallpaper="$2"; shift 2 ;;
-    --real)          real=1; shift ;;
     --resolution)    resolution="$2"; shift 2 ;;
-    --shot)          shot="$2"; gui=0; shift 2 ;;
     --timeout)       timeout_secs="$2"; shift 2 ;;
+    --shot)          shot="$2"; gui=0; shift 2 ;;
+    --real)          real=1; shift ;;
     --gui)           gui=1; shift ;;
     -h|--help)       usage; exit 0 ;;
     *) echo "opción desconocida: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+# ── Comandos que no son de preview ─────────────────────────────────────────
+case "$command" in
+  wallpapers)
+    if ! command -v prepare-wallpapers >/dev/null 2>&1; then
+      echo "FALTA: prepare-wallpapers (corré scripts/install.sh)" >&2
+      exit 1
+    fi
+    exec prepare-wallpapers "$@"
+    ;;
+  setup)
+    repo_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." 2>/dev/null && pwd || true)"
+    if [[ -n "$repo_dir" && -x "$repo_dir/scripts/install.sh" ]]; then
+      exec "$repo_dir/scripts/install.sh"
+    fi
+    echo "No encuentro el install.sh del repo. Bajá el repo y corré:" >&2
+    echo "    ./scripts/install.sh" >&2
+    exit 1
+    ;;
+esac
 
 # ── Config real del sistema ────────────────────────────────────────────────
 if [[ "$real" == "1" ]]; then
@@ -89,6 +153,16 @@ done
 [[ -f "$conf" ]]       || { echo "No existe la config: $conf" >&2; exit 1; }
 [[ -f "$wallpaper" ]]  || { echo "No existe el wallpaper: $wallpaper" >&2; exit 1; }
 [[ -e /dev/kvm ]]     || echo "AVISO: sin /dev/kvm, la VM va a ir por emulación (lenta)" >&2
+
+# Si es una captura sin nombre, se genera uno con timestamp
+if [[ -n "$shot" && "$shot" != /* && "$shot" != */* ]]; then
+  shot="$PWD/$shot"
+elif [[ -n "$shot" && "$shot" != /* ]]; then
+  shot="$PWD/$shot"
+fi
+if [[ "$command" == "shot" && -z "$shot" ]]; then
+  shot="$PWD/limine-preview-$(date +%Y%m%d-%H%M%S).png"
+fi
 
 # ── Construir el árbol del ISO ──────────────────────────────────────────────
 rm -rf "$WORK_DIR"
@@ -123,7 +197,7 @@ interface_resolution: {resolution}
 """
 
 # OJO: en Limine las opciones GLOBALES tienen que ir antes de la primera
-# entrada de menu (una linea que empieza por "/"). Si se inyectan al final,
+# entrada de menu (una linea que empieza con "/"). Si se inyectan al final,
 # Limine las trata como opciones de esa entrada y las ignora.
 lines = text.splitlines()
 insert_at = len(lines)

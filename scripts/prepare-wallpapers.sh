@@ -17,8 +17,13 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-src="${REPO_DIR}/examples/wallpaper/rei.png"
-out_dir="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview/wallpaper"
+# El source por defecto es el wallpaper YA INSTALADO (que es donde vive
+# cuando el script se instala en ~/.local/bin, sin repo al lado). Si no
+# esta, se cae al del repo.
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
+src="${CONFIG_DIR}/wallpaper/rei.png"
+[[ -f "$src" ]] || src="${REPO_DIR}/examples/wallpaper/rei.png"
+out_dir="${CONFIG_DIR}/wallpaper"
 blur="0x30"
 res="1920x1080"
 esrgan="anime"
@@ -58,10 +63,10 @@ printf '\n  %s\n  %s\n\n' \
   "$out_dir/$base-blur.png"
 cat <<EOF
   Para ver la difuminada en el preview:
-      limine-preview --wallpaper $out_dir/$base-blur.png
+      limine-preview wall $out_dir/$base-blur.png
 
   Para ver la real:
-      limine-preview --wallpaper $out_dir/$base.png
+      limine-preview wall $out_dir/$base.png
 
   Para el Limine real, la que quieras va a /boot/splash.png:
       sudo cp $out_dir/$base-blur.png /boot/splash.png

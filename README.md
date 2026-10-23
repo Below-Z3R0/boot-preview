@@ -121,37 +121,32 @@ Y **no** toca nada del sistema: ni `/boot/limine.conf`, ni
 
 ## Uso
 
+La CLI es de **subcomandos**, no de flags:
+
 ```bash
-# Ver el menu con la config de prueba (ventana de QEMU)
-limine-preview
-
-# Verlo con TU config real de /boot/limine.conf
-limine-preview --real
-
-# Capturar a PNG y salir (sin ventana)
-limine-preview --shot ~/preview.png
-
-# Probar otro wallpaper
-limine-preview --wallpaper /ruta/imagen.png
-
-# Otra resolucion de la interfaz
-limine-preview --resolution 2560x1440
+limine-preview                # preview del menú (lo de siempre)
+limine-preview real           # con tu config real de /boot/limine.conf
+limine-preview shot           # captura a PNG y sale
+limine-preview shot mi.png    # captura a un archivo
+limine-preview wall foto.png  # preview con otro wallpaper
+limine-preview wallpapers     # regenera las dos versiones del wallpaper
+limine-preview setup          # instala dependencias y archivos
+limine-preview help           # la ayuda
 ```
 
 En la ventana de QEMU: **flechas** para moverte, **ENTER** para bootear,
 **E** para editar la config, **F1** para el firmware, **ESC** para salir.
 **Ctrl+Q** cierra QEMU.
 
-### Opciones
+### Opciones avanzadas
+
+Para lo raro están los flags, ocultos en la ayuda:
 
 | Opción | Qué hace |
 |---|---|
 | `-c, --config <ruta>` | Config de Limine a usar (default: `~/.config/limine-preview/limine.conf`) |
 | `-w, --wallpaper <ruta>` | Wallpaper a incluir en el ISO |
-| `--real` | Usar la config real de `/boot/limine.conf` (lee con sudo) |
 | `--resolution <WxH>` | Resolución de la interfaz (default: `1920x1080`) |
-| `--shot <ruta.png>` | Captura el framebuffer a PNG y sale (sin ventana) |
-| `--gui` | Abre la ventana de QEMU (por defecto) |
 | `--timeout <seg>` | Espera antes de capturar (default: 15) |
 
 ## Requisitos
