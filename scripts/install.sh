@@ -73,6 +73,23 @@ else
   warn "sin /dev/kvm: la VM va a ir por emulación (lenta)"
 fi
 
+# Los modelos de Real-ESRGAN (para el upscale con IA). El binario ya esta
+# instalado pero busca los .param/.bin en ~/.local/bin/models/.
+ESR_MODELS_DIR="$BIN_DIR/models"
+if [[ ! -f "$ESR_MODELS_DIR/realesrgan-x4plus-anime.param" ]]; then
+  say "Bajando los modelos de Real-ESRGAN (~47 MB)..."
+  if curl -sSL -o /tmp/esr-models.zip \
+      https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip \
+      2>/dev/null && unzip -j -o /tmp/esr-models.zip 'models/*' -d "$ESR_MODELS_DIR" >/dev/null 2>&1; then
+    ok "modelos de Real-ESRGAN en $ESR_MODELS_DIR"
+  else
+    warn "no se pudieron bajar los modelos de Real-ESRGAN (el upscale con IA queda sin usar)"
+  fi
+  rm -f /tmp/esr-models.zip
+else
+  ok "modelos de Real-ESRGAN ya estaban"
+fi
+
 # ── 2. El script ───────────────────────────────────────────────────────────
 step "2/4  El script"
 

@@ -199,6 +199,45 @@ interface_help_hidden: no
 
 ## Blur y "máxima calidad"
 
+### Más calidad: Real-ESRGAN
+
+Limine no tiene opción de calidad de imagen, pero se puede **mejorar la
+imagen antes** con IA. `scripts/make-wallpaper.sh` con `--esrgan` usa
+`realesrgan-ncnn-vulkan` (que ya estaba instalado, pero **sin los modelos**):
+
+```bash
+# anime: el modelo reentrenado specifically para anime
+make-wallpaper.sh rei.png -o /tmp/splash.png --esrgan anime --res 1920x1080
+
+# video anime (más rápido, 12 s vs 75 s)
+make-wallpaper.sh rei.png -o /tmp/splash.png --esrgan animevideo
+
+# general
+make-wallpaper.sh foto.jpg -o /tmp/splash.png --esrgan general
+```
+
+**El truco**: upscalear x4 y después **bajar** a la resolución final con
+Lanczos. El resultado tiene más detalle *percibido* que el original, sin
+inventar textura nueva.
+
+Medido con el Laplaciano (nitidez) sobre el wallpaper de ejemplo:
+
+| Versión | Nitidez |
+|---|---|
+| PNG original | 4.617 |
+| frame extraído del MP4 | 4.617 |
+| **Real-ESRGAN x4 + downscale** | **7.656** (+66%) |
+
+**Los modelos** (los busca en `~/.local/bin/models/`) vienen del release
+`v0.2.5.0` de `xinntao/Real-ESRGAN`:
+
+```bash
+mkdir -p ~/.local/bin/models
+curl -sSL -o /tmp/esr.zip \
+  https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip
+unzip -j /tmp/esr.zip 'models/*' -d ~/.local/bin/models/
+```
+
 ### Limine no puede difuminar
 
 No hay opción de blur, ni de sharpen, ni de filtro. El wallpaper se decodifica
@@ -235,26 +274,53 @@ scripts/make-wallpaper.sh ~/Pictures/foto.png \
 Limine **no tiene ninguna opción de calidad de imagen**: no hay un
 `image_quality` ni un `jpeg_quality`. La calidad es la del fichero que le des.
 
-### El detalle que más confunde: `term_background` y el margen
+### ⚠️ El detalle que más confunde: el alpha de `term_background` va al revés
 
-`term_background` no es solo "el fondo del texto": es también **el color del
-degradado del margen** (`term_margin_gradient`).
+`term_background` no es solo "el fondo del texto": es el color con el que se
+**mezcla** el wallpaper. Y el byte alto (`TT`) **no funciona como "transparencia"
+dice la doc** — funciona al revés.
 
-El degradado va de **transparente en el borde** a **opaco en el centro**, así
-que:
+El blend en `common/lib/gterm.c` es:
+
+```c
+#define A(rgb) (uint8_t)(rgb >> 24)
+unsigned alpha    = 255 - A(fg);      // ← el byte alto, invertido
+unsigned inv_alpha = A(fg) + 1;
+r = (alpha * R(fg) + inv_alpha * R(bg)) / 256;   // fg = term_background, bg = wallpaper
+```
+
+| `TT` | Qué pasa | Resultado |
+|---|---|---|
+| `00` | `alpha=255` → manda el **color** | **recuadro negro** sobre el wallpaper |
+| `40` | mezcla 75/25 | el wallpaper apenas se insinúa |
+| `80` | mezcla 50/50 | el wallpaper se ve a medias ← el look "card" |
+| `FF` | `alpha=0` → pasa el **wallpaper** | **wallpaper limpio**, sin panel |
+
+O sea: **cuanto más alto el byte, más wallpaper se ve**. Para el wallpaper
+limpio (sin panel, sin velo) es `FF`; para el panel translúcido es `80`.
+
+Medido en el preview real, con el mismo wallpaper:
+
+| `term_background` | Lo que se ve |
+|---|---|
+| `00191924` | solo el marco exterior con wallpaper; el centro, negro |
+| `40191924` | el centro empieza a transparentarse |
+| `80191924` | wallpaper a medias, panel translúcido |
+| `FF191924` | **wallpaper completo y limpio** |
+
+### El margen también importa
+
+`term_margin` (default **64 px** con wallpaper) define el área donde se dibuja
+el texto; `term_margin_gradient` (default **4**) el difuminado del borde. Con
+`term_margin: 0` el wallpaper desaparece de la zona del texto — no es un
+problema del alpha, es que el área del texto se dibuja siempre con su propio
+fondo.
 
 | Config | Resultado |
 |---|---|
-| `term_background: B01E1E2E` (alpha B0) | panel translúcido con borde difuminado ← el look "card" |
-| `term_background: 00000000` + `term_margin: 0` | el wallpaper se ve limpio, sin panel |
-| `term_background: 00000000` + margen default (64) | wallpaper con un velo interior que se intensifica hacia el centro |
-
-**El valor por defecto del margen es 64 px** (cuando hay wallpaper), y
-`term_margin_gradient` es 4. Por eso, sin tocar nada, aparece un marco
-alrededor del área del menú.
-
-> El alpha es el **byte alto**: `A(rgb) = rgb >> 24`. `00000000` = totalmente
-> transparente, `FF000000` = negro opaco, `B01E1E2E` = 69% opaco.
+| `term_background: FF191924` + `term_margin: 64` | **wallpaper limpio**, el menú encima ← lo más "normal" |
+| `term_background: FF191924` + `term_margin: 0` | wallpaper limpio, sin marco, pero el texto se mezcla con el dibujo |
+| `term_background: 80191924` + `term_margin: 120` | panel translúcido con borde difuminado ← el look "card" |
 
 ## Lo que NO se puede
 

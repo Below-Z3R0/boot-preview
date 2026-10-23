@@ -230,10 +230,49 @@ scripts/make-wallpaper.sh ~/Pictures/foto.png \
 scripts/make-wallpaper.sh ~/Pictures/foto.png --res 1920x1080 --format qoi
 ```
 
-**Para máxima calidad**: el wallpaper tiene que medir al menos lo que la
-`interface_resolution` (si es más chico, Limine lo escala y se ve borroso), y
-en PNG o QOI, que son lossless. Limine no tiene opción de calidad de imagen:
-la calidad es la del fichero.
+**Para máxima calidad** hay dos caminos:
+
+1. **Que el wallpaper mida al menos lo que la `interface_resolution`** (si es
+   más chico, Limine lo escala y se ve borroso) y que esté en PNG o QOI, que
+   son lossless. Limine no tiene opción de calidad de imagen: la calidad es la
+   del fichero.
+
+2. **Mejorarlo con IA** antes de usarlo. `make-wallpaper.sh --esrgan` usa
+   Real-ESRGAN, que ya está instalado (los modelos hay que bajarlos una vez):
+
+   ```bash
+   make-wallpaper.sh rei.png -o /tmp/splash.png --esrgan anime --res 1920x1080
+   ```
+
+   El truco es upscalear x4 y después **bajar** a la resolución final con
+   Lanczos: el resultado tiene más detalle perceptible que el original.
+   Medido en este wallpaper: nitidez **4.617 → 7.656 (+66%)**.
+
+   Los modelos (los busca en `~/.local/bin/models/`) vienen del release
+   `v0.2.5.0` de `xinntao/Real-ESRGAN`:
+   ```bash
+   mkdir -p ~/.local/bin/models
+   curl -sSL -o /tmp/esr.zip \
+     https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip
+   unzip -j /tmp/esr.zip 'models/*' -d ~/.local/bin/models/
+   ```
+
+### ⚠️ El alpha de `term_background` va al revés
+
+Para que el wallpaper se vea **limpio detrás del texto** (sin panel, sin
+velo), el byte de alpha tiene que ser **alto**:
+
+```ini
+term_background: FF191924    # FF = el wallpaper se ve completo
+term_margin: 64
+term_margin_gradient: 4
+```
+
+Con `00` el color tapa el wallpaper y sale un **recuadro negro**. La doc
+oficial dice "TT stands for transparency", pero el blend en
+`common/lib/gterm.c` lo invierte: cuanto más alto el byte, **más wallpaper**
+se ve. Los valores útiles: `FF` limpio, `80` panel translúcido, `40` velo
+fuerte.
 
 El wallpaper generado va a `/boot/splash.png` para el Limine real, o se
 prueba sin tocar nada con:

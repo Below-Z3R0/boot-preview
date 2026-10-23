@@ -15,6 +15,10 @@
 #   --format qoi     QOI: lossless y se decodifica mas rapido que PNG
 #   --dim 0.35       velo negro uniforme encima (0 = nada, 1 = negro)
 #   --overlay COLOR  velo de ese color en vez de negro
+#   --esrgan [MOD]   upscale con IA (Real-ESRGAN) antes de preparar la
+#                    imagen. MOD: anime (default), animevideo, general
+#                    -s 2 para x2, -s 4 para x4 (default). El x4 + downscale
+#                    a la resolucion final da el maximo detalle perceptible
 #
 # Por que "--dim" y no "multiplicar el brillo": multiplicar aplasta los
 # negros y la imagen se vuelve una mancha sin detalle. El velo uniforme baja
@@ -35,6 +39,8 @@ res=""
 format="png"
 dim=0.0
 overlay="#000000"
+esrgan=""
+esrgan_scale=4
 
 usage() {
   sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
@@ -48,6 +54,8 @@ while [[ $# -gt 0 ]]; do
     --format)    format="$2"; shift 2 ;;
     --dim)       dim="$2"; shift 2 ;;
     --overlay)   overlay="$2"; shift 2 ;;
+    --esrgan)    esrgan="${2:-anime}"; shift 2 ;;
+    --esrgan-scale) esrgan_scale="$2"; shift 2 ;;
     -h|--help)   usage; exit 0 ;;
     *)           src="$1"; shift ;;
   esac
@@ -58,6 +66,30 @@ done
 command -v magick >/dev/null 2>&1 || { echo "FALTA: imagemagick" >&2; exit 1; }
 
 [[ -n "$out" ]] || out="${src%.*}-limine.${format}"
+
+# ── 0. Upscale con IA (opcional) ──────────────────────────────────────────
+# Real-ESRGAN agrega detalle que no estaba. El truco: upscalear x4 y despues
+# bajar a la resolucion final con Lanczos: el resultado tiene MAS detalle
+# perceptible que el original, sin inventar textura nueva.
+esrgan_bin="realesrgan-ncnn-vulkan"
+esrgan_model="realesrgan-x4plus-anime"
+case "$esrgan" in
+  anime)      esrgan_model="realesrgan-x4plus-anime" ;;
+  animevideo) esrgan_model="realesr-animevideov3" ;;
+  general)    esrgan_model="realesrgan-x4plus" ;;
+  "")         esrgan_model="" ;;
+  *) echo "modelo de ESRGAN desconocido: $esrgan (anime|animevideo|general)" >&2; exit 1 ;;
+esac
+
+work_src="$src"
+if [[ -n "$esrgan_model" ]]; then
+  command -v "$esrgan_bin" >/dev/null 2>&1 || {
+    echo "FALTA: $esrgan_bin (para el upscale con IA)" >&2; exit 1; }
+  esrgan_tmp="$(mktemp /tmp/limine-esr.XXXXXX.png)"
+  echo "  Real-ESRGAN ($esrgan_model x$esrgan_scale)..."
+  "$esrgan_bin" -i "$src" -o "$esrgan_tmp" -n "$esrgan_model" -s "$esrgan_scale" -f png >/dev/null 2>&1
+  work_src="$esrgan_tmp"
+fi
 
 # ── 1. Resolucion destino ─────────────────────────────────────────────────
 if [[ -n "$res" ]]; then
@@ -81,11 +113,10 @@ if [[ "$dim" != "0" && "$dim" != "0.0" ]]; then
 fi
 
 # ── 4. Composicion ───────────────────────────────────────────────────────
-tmp_in="$src"
 tmp_out="$(mktemp /tmp/limine-wp.XXXXXX.png)"
 trap 'rm -f "$tmp_out"' EXIT
 
-magick "$tmp_in" "${scale_args[@]}" "${blur_args[@]}" "${dim_args[@]}" -depth 8 -strip "$tmp_out"
+magick "$work_src" "${scale_args[@]}" "${blur_args[@]}" "${dim_args[@]}" -depth 8 -strip "$tmp_out"
 
 # El sharpen va DESPUES del resize (devuelve el detalle que el escalado se
 # come), pero antes del blur (un blur afterward lo desharia).
