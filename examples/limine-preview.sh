@@ -23,6 +23,14 @@ set -euo pipefail
 # ── Rutas ────────────────────────────────────────────────────────────────────
 LIMINE_DIR="${LIMINE_DIR:-/usr/share/limine}"
 WORK_DIR="${WORK_DIR:-/tmp/limine-preview}"
+
+# BUG FIX: abajo hay un `rm -rf "$WORK_DIR"`. Si alguien exporta WORK_DIR=/ o
+# WORK_DIR=$HOME, eso se lleva medio sistema. Se valida antes de tocar nada.
+if [[ -z "$WORK_DIR" || "$WORK_DIR" == "/" || "$WORK_DIR" == "$HOME" || "$WORK_DIR" == "/etc" || "$WORK_DIR" == "/usr" ]]; then
+  echo "WORK_DIR peligroso: '$WORK_DIR'" >&2
+  echo "  (no puede ser vazio, /, \$HOME, /etc ni /usr)" >&2
+  exit 1
+fi
 # La config de PRUEBA (la que carga el preview por default).
 # Respeta XDG_CONFIG_HOME, igual que install.sh.
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
@@ -197,6 +205,10 @@ case "$command" in
       src_wall="$CONFIG_DIR/wallpaper/wallpaper.png"
       [[ -f "$src_wall" ]] || src_wall="$DEFAULT_WALLPAPER"
       [[ -f "$src_wall" ]] || { echo "No hay wallpaper que aplicar" >&2; exit 1; }
+      # OJO: /boot es la ESP en vfat (fmask=0077), asi que los permisos los
+      # fija el mount y `chmod` no hace nada ahi (devuelve 0 y no cambia
+      # nada). No hace falta normalizar el modo: Limine lee la ESP directo,
+      # sin pasar por el kernel.
       sudo cp "$src_wall" /boot/splash.png
       echo "  ✓ wallpaper  ->  /boot/splash.png"
     fi
@@ -456,7 +468,10 @@ qemu_pid=$!
 cleanup() {
   kill "$qemu_pid" 2>/dev/null || true
   wait "$qemu_pid" 2>/dev/null || true
-  [[ -n "${REAL_CONF_TMP:-}" ]] && rm -f "$REAL_CONF_TMP"
+  if [[ -n "${REAL_CONF_TMP:-}" ]]; then
+    rm -f "$REAL_CONF_TMP"
+  fi
+  return 0
 }
 trap cleanup EXIT
 
@@ -468,28 +483,56 @@ done
 
 # ── Captura del framebuffer ────────────────────────────────────────────────
 if [[ -n "$shot" ]]; then
-  echo "Esperando ${timeout_secs}s a que arranque el menu..."
-  sleep "$timeout_secs"
-
   raw="$WORK_DIR/shot.ppm"
   rm -f "$raw"
 
-  # El screendump necesita que la VM ya haya pintado. Se reintenta: con la
-  # config real (99 KB, cientos de entradas) el menu tarda mas en dibujarse.
-  for attempt in 1 2 3 4 5; do
+  # En vez de esperar un tiempo fijo, se le pregunta al monitor si Limine ya
+  # dibujó el menu. Ahorra ~10s de los 15 que costaba antes.
+  #
+  # La señal NO es "hay algo pintado": el logo de TianoCore (OVMF) ya cuenta
+  # como pintado, y se terminaba capturando el logo en vez del menu. La señal
+  # buena es el CAMBIO DE RESOLUCION: OVMF arranca en 1280x800 y Limine la
+  # cambia a la interface_resolution al tomar el control.
+  deadline=$(( $(date +%s) + timeout_secs ))
+  echo "Esperando a que arranque el menu (max ${timeout_secs}s)..."
+  settled=0
+
+  while :; do
     echo "screendump $raw" | socat - "UNIX-CONNECT:$monitor_sock" >/dev/null 2>&1 || true
-    for _ in $(seq 1 20); do
-      [[ -s "$raw" ]] && break 2
-      sleep 0.3
-    done
-    echo "  reintentando la captura ($attempt/5)..."
-    sleep 2
+
+    if [[ -s "$raw" ]]; then
+      if command -v vips >/dev/null 2>&1; then
+        size="$(vipsheader "$raw" 2>/dev/null | sed -n 's/.*: \([0-9]*x[0-9]*\).*/\1/p')"
+      else
+        size="$(magick identify -format '%wx%h' "$raw" 2>/dev/null)"
+      fi
+
+      if [[ "$size" == "$resolution" ]]; then
+        # Ya es la resolucion del menu: falta que termine de pintar (Limine
+        # dibuja el fondo y despues el texto).
+        if [[ $settled == 1 ]]; then
+          break
+        fi
+        settled=1
+        sleep 0.5
+        continue
+      fi
+    fi
+
+    if [[ $(date +%s) -ge $deadline ]]; then
+      echo "  se agoto el tiempo de espera, capturando lo que haya"
+      break
+    fi
+    sleep 0.3
   done
 
   if [[ -s "$raw" ]]; then
-    magick "$raw" -resize 1920x1080 "$shot" 2>/dev/null \
-      || convert "$raw" -resize 1920x1080 "$shot" 2>/dev/null \
-      || cp "$raw" "$shot"
+    # vips es ~6x mas rapido que ImageMagick para esto
+    if command -v vips >/dev/null 2>&1; then
+      vips copy "$raw" "$shot" 2>/dev/null || magick "$raw" "$shot" 2>/dev/null || cp "$raw" "$shot"
+    else
+      magick "$raw" "$shot" 2>/dev/null || cp "$raw" "$shot"
+    fi
     echo "Captura: $shot"
   else
     echo "No se pudo capturar el framebuffer" >&2

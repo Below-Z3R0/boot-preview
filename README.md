@@ -65,6 +65,32 @@ Los assets van aparte, en la partición FAT que Limine lee:
 | `/boot/splash.png` | el wallpaper del boot |
 | `/boot/font.F16` | la fuente custom (CP437 bitmap) |
 
+## Rendimiento
+
+Medido en esta máquina (8 núcleos, QEMU con KVM):
+
+| Operación | Antes | Ahora | Cómo |
+|---|---|---|---|
+| `shot` (captura) | 15.6 s | **2.8-3.1 s** | polling del framebuffer en vez de `sleep 15` fijo |
+| `make-wallpaper` (resize + blur) | 0.9 s | **0.2-0.4 s** | vips (libvips) en vez de ImageMagick |
+| `prepare-wallpapers` (2 versiones) | ~2 s | **0.9 s** | idem |
+
+Detalles de los cambios:
+
+- **El `sleep` fijo era el 96% del tiempo.** El script ahora le pregunta al
+  monitor de QEMU cada 300 ms. La señal buena no es "hay algo pintado" (el
+  logo de TianoCore ya cuenta), sino el **cambio de resolución**: OVMF arranca
+  en 1280x800 y Limine la cambia a la `interface_resolution` al tomar el
+  control.
+- **vips es ~6x más rápido que ImageMagick** para resize+blur (105 ms vs
+  681 ms por imagen). El resultado es equivalente (RMSE 0.94%, indistinguible
+  a ojo). Se usa vips si está, y si no `magick`: el script sigue funcionando.
+- **QOI sigue pasando por ImageMagick**: vips no escribe ese formato.
+
+> Bun no entra acá: arranca en ~117 ms contra los 2 ms de bash, y el trabajo
+> real lo hacen binarios externos (qemu, xorriso, vips). Ver
+> [docs/RENDIMIENTO.md](docs/RENDIMIENTO.md).
+
 ## Instalación
 
 ```bash

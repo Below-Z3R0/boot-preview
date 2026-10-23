@@ -55,7 +55,15 @@ done
 
 [[ -n "$src" ]] || { usage; exit 1; }
 [[ -f "$src" ]] || { echo "No existe: $src" >&2; exit 1; }
-command -v magick >/dev/null 2>&1 || { echo "FALTA: imagemagick" >&2; exit 1; }
+
+# vips (libvips) es ~6x mas rapido que ImageMagick para resize+blur, pero no
+# escribe QOI. Se prefiere vips y se cae a magick para esa salida.
+have_vips=0
+command -v vips >/dev/null 2>&1 && have_vips=1
+if [[ $have_vips == 0 ]]; then
+  command -v magick >/dev/null 2>&1 || { echo "FALTA: imagemagick (o vips)" >&2; exit 1; }
+fi
+[[ "$format" == "qoi" ]] && command -v magick >/dev/null 2>&1 || true
 
 [[ -n "$out" ]] || out="${src%.*}-limine.${format}"
 
@@ -81,27 +89,104 @@ if [[ "$dim" != "0" && "$dim" != "0.0" ]]; then
 fi
 
 # ── 4. Composicion ───────────────────────────────────────────────────────
-tmp_out="$(mktemp /tmp/limine-wp.XXXXXX.png)"
-trap 'rm -f "$tmp_out"' EXIT
+if [[ $have_vips == 1 ]]; then
+  # libvips NO puede leer y escribir el mismo archivo: en operaciones con
+  # acceso aleatorio (crop) revienta con "Bus error (core dumped)". Por eso
+  # se alterna entre dos temporales, uno lee y el otro escribe.
+  tmp_a="$(mktemp /tmp/limine-wp.XXXXXX.v)"
+  tmp_b="$(mktemp /tmp/limine-wp.XXXXXX.v)"
+  tmp_out="$(mktemp /tmp/limine-wp.XXXXXX.png)"
+  trap 'rm -f "$tmp_a" "$tmp_b" "$tmp_out"' EXIT
 
-magick "$src" "${scale_args[@]}" "${blur_args[@]}" "${dim_args[@]}" -depth 8 -strip "$tmp_out"
+  # Nota: el modulo openslide de Arch viene sin su lib y tira un warning en
+  # cada invocacion. VIPS_WARNING=0 NO lo silencia (sale del loader de modulos,
+  # antes de leer la variable), asi que cada llamada a vips lleva 2>/dev/null.
 
-# El sharpen va DESPUES del resize (devuelve el detalle que el escalado se
-# come), pero antes del blur (un blur afterward lo desharia).
-if [[ -n "$res" && "$blur" == "0x0" ]]; then
-  magick "$tmp_out" -unsharp 0x0.75+0.75+0.01 -depth 8 -strip "$tmp_out"
+  cur="$tmp_a"; nxt="$tmp_b"
+  swap() { local t="$cur"; cur="$nxt"; nxt="$t"; }
+
+  # Ejecuta un paso de vips y detecta el fallo. Sin esto, `set -e` no alcanza:
+  # un `cmd; swap` deja correr el swap aunque el comando haya fallado, y el
+  # script termina con un PNG vacio sin decir nada.
+  run_vips() {
+    local desc="$1"; shift
+    if ! "$@" >/dev/null 2>&1; then
+      echo "  error: vips fallo en '$desc'" >&2
+      exit 1
+    fi
+    swap
+  }
+
+  if [[ -n "$res" ]]; then
+    tw="${res%x*}"; th="${res#*x}"
+    sw="$(vipsheader -f width  "$src" 2>/dev/null)"; sh="$(vipsheader -f height "$src" 2>/dev/null)"
+    scale="$(awk -v sw="$sw" -v sh="$sh" -v tw="$tw" -v th="$th" \
+      'BEGIN{ s1=tw/sw; s2=th/sh; printf "%.6f", (s1>s2?s1:s2) }')"
+    nw="$(awk -v w="$sw" -v s="$scale" 'BEGIN{ printf "%d", w*s+0.5 }')"
+    nh="$(awk -v h="$sh" -v s="$scale" 'BEGIN{ printf "%d", h*s+0.5 }')"
+
+    run_vips "resize" vips resize "$src" "$nxt" "$scale"
+    # Simetrico o no, el recorte al centro solo hace falta si sobra imagen.
+    if [[ "$nw" -gt "$tw" || "$nh" -gt "$th" ]]; then
+      run_vips "crop" vips crop "$cur" "$nxt" "$(( (nw - tw) / 2 ))" "$(( (nh - th) / 2 ))" "$tw" "$th"
+    fi
+  else
+    run_vips "copy" vips copy "$src" "$nxt"
+  fi
+
+  # Sharpen: DESPUES del resize (devuelve el detalle que el escalado se come)
+  # y ANTES del blur (un blur afterward lo desharia).
+  if [[ -n "$res" && "$blur" == "0x0" ]]; then
+    run_vips "sharpen" vips sharpen "$cur" "$nxt" --sigma 0.9
+  fi
+
+  # Blur gaussiano. En ImageMagick `0xSIGMA` es radio 0 + sigma SIGMA, que es
+  # exactamente el sigma de vips.
+  if [[ "$blur" != "0x0" && -n "$blur" ]]; then
+    sigma="${blur#0x}"
+    run_vips "gaussblur" vips gaussblur "$cur" "$nxt" "$sigma"
+  fi
+
+  # Velo uniforme. Con negro alcanza un `linear` (out = in * (1-dim)); con
+  # otro color hace falta mezclar, y ahi vuelve magick.
+  if [[ "$dim" != "0" && "$dim" != "0.0" ]]; then
+    if [[ "$overlay" == "#000000" || "$overlay" == "black" ]]; then
+      factor="$(awk -v d="$dim" 'BEGIN{ printf "%.6f", 1-d }')"
+      run_vips "linear" vips linear "$cur" "$nxt" "$factor" 0
+    else
+      percent=$(awk -v d="$dim" 'BEGIN{ printf "%d", d*100 }')
+      magick "$cur" -fill "$overlay" -colorize "$percent" "$nxt" >/dev/null 2>&1; swap
+    fi
+  fi
+
+  vips copy "$cur" "$tmp_out" >/dev/null 2>&1
+else
+  tmp_out="$(mktemp /tmp/limine-wp.XXXXXX.png)"
+  trap 'rm -f "$tmp_out"' EXIT
+
+  magick "$src" "${scale_args[@]}" "${blur_args[@]}" "${dim_args[@]}" -depth 8 -strip "$tmp_out"
+
+  # El sharpen va DESPUES del resize (devuelve el detalle que el escalado se
+  # come), pero antes del blur (un blur afterward lo desharia).
+  if [[ -n "$res" && "$blur" == "0x0" ]]; then
+    magick "$tmp_out" -unsharp 0x0.75+0.75+0.01 -depth 8 -strip "$tmp_out"
+  fi
 fi
 
 # ── 5. Salida ────────────────────────────────────────────────────────────
 if [[ "$format" == "qoi" ]]; then
   # QOI necesita la extension .qoi para que ImageMagick elija el encoder.
+  # (vips no sabe escribir QOI, por eso esta rama siempre pasa por magick.)
   out="${out%.*}.qoi"
   magick "$tmp_out" -define qoi:codec=1 "$out"
+elif [[ $have_vips == 1 ]]; then
+  # $tmp_out ya es un PNG escrito por vips: no hace falta re-codificar.
+  cp "$tmp_out" "$out"
 else
   magick "$tmp_out" "PNG32:$out"
 fi
 
 printf '%s  %s  %s\n' \
-  "$(magick identify -format '%wx%h' "$out")" \
+  "$(if [[ $have_vips == 1 ]]; then vipsheader -f width "$out" 2>/dev/null; else magick identify -format '%w' "$out" 2>/dev/null; fi)x$(if [[ $have_vips == 1 ]]; then vipsheader -f height "$out" 2>/dev/null; else magick identify -format '%h' "$out" 2>/dev/null; fi)" \
   "$(du -h "$out" | cut -f1)" \
   "$out"

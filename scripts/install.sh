@@ -52,6 +52,14 @@ else
   ok "OVMF (UEFI) presente"
 fi
 
+# vips (libvips): opcional pero recomendado. Es ~6x mas rapido que ImageMagick
+# para el resize+blur de los wallpapers y para leer el framebuffer del preview.
+if command -v vips >/dev/null 2>&1; then
+  ok "vips (libvips) presente — wallpapers ~6x mas rapidos"
+else
+  warn "sin vips: se usa ImageMagick (mas lento, pero funciona)"
+fi
+
 # KVM: sin el, la VM va por emulación (lenta pero funciona).
 if [[ -e /dev/kvm ]]; then
   ok "/dev/kvm presente — la VM arranca en segundos"
