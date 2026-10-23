@@ -26,7 +26,8 @@ docs/
 ├── THEMING.md             # las 52 opciones y qué se puede personalizar
 └── APLICAR.md             # cómo aplicar el tema al Limine real
 scripts/
-└── install.sh             # deja todo andando
+├── install.sh             # deja todo andando
+└── make-wallpaper.sh      # blur + velo + resolución, para Limine
 ```
 
 ## Las tres configs de Limine
@@ -87,6 +88,17 @@ install -m 644 examples/limine-preview.conf ~/.config/limine-preview/limine.conf
 # 4. El wallpaper
 mkdir -p ~/.config/limine-preview/wallpaper
 install -m 644 examples/wallpaper/rei.png ~/.config/limine-preview/wallpaper/rei.png
+
+# 5. (opcional) el generador de wallpapers con blur
+install -m 755 scripts/make-wallpaper.sh ~/.local/bin/make-wallpaper
+```
+
+### Preparar un wallpaper con blur
+
+```bash
+make-wallpaper.sh IMAGEN [-o SALIDA] [--blur 0x30] [--dim 0.4]
+                            [--res 1920x1080] [--format png|qoi]
+                            [--overlay COLOR]
 ```
 
 El `install.sh` hace todo eso y además deja un **shim** en
@@ -200,6 +212,36 @@ en `/usr/local/bin/limine-preview` que, si lo invoca root, **baja al usuario
 que lo lanzó** — así QEMU no corre como root y los archivos del preview no
 quedan propiedad de root.
 
+## Wallpapers: blur y calidad
+
+Limine **no puede difuminar** una imagen — la dibuja tal cual. Pero el
+desenfoque se puede hacer antes, al preparar el fichero:
+
+```bash
+# difuminado + velo, a la resolución exacta de la interfaz
+scripts/make-wallpaper.sh ~/Pictures/foto.png \
+  --blur 0x30 --dim 0.4 --res 1920x1080
+
+# el velo en el color de fondo del tema
+scripts/make-wallpaper.sh ~/Pictures/foto.png \
+  --blur 0x30 --dim 0.45 --overlay "#191724" --res 1920x1080
+
+# versión QOI (lossless y se decodifica más rápido que PNG)
+scripts/make-wallpaper.sh ~/Pictures/foto.png --res 1920x1080 --format qoi
+```
+
+**Para máxima calidad**: el wallpaper tiene que medir al menos lo que la
+`interface_resolution` (si es más chico, Limine lo escala y se ve borroso), y
+en PNG o QOI, que son lossless. Limine no tiene opción de calidad de imagen:
+la calidad es la del fichero.
+
+El wallpaper generado va a `/boot/splash.png` para el Limine real, o se
+prueba sin tocar nada con:
+
+```bash
+limine-preview --wallpaper ~/Pictures/foto-borrosa.png
+```
+
 ## Lo que se puede personalizar
 
 **52 opciones globales** en `limine.conf`, 16 de ellas de theming. El detalle
@@ -252,6 +294,7 @@ sudo limine-mkinitcpio
 | [`docs/APLICAR.md`](docs/APLICAR.md) | Cómo aplicar el tema al `/etc/default/limine` real, con rollback |
 | [`examples/limine-preview.conf`](examples/limine-preview.conf) | La config de prueba, comentada |
 | [`examples/theming-rosepine.conf`](examples/theming-rosepine.conf) | El bloque de theming para pegar en `/etc/default/limine` |
+| [`scripts/make-wallpaper.sh`](scripts/make-wallpaper.sh) | Blur, velo y escalado del wallpaper (Limine no puede difuminar) |
 
 ## Licencia
 

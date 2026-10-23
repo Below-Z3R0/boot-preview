@@ -79,6 +79,19 @@ identify /boot/splash.png    # 1920x1080
 **Formatos aceptados**: PNG, BMP, JPEG y **QOI**. QOI es más liviano y
 decodifica más rápido — ideal para un bootloader.
 
+**Para máxima calidad**: el wallpaper tiene que medir al menos lo que la
+`interface_resolution` (si es más chico, Limine lo escala y se ve borroso), y
+en PNG o QOI, que son lossless.
+
+**Para el blur**: Limine no puede difuminar — la imagen se dibuja tal cual.
+Se difumina antes, con el generador:
+
+```bash
+scripts/make-wallpaper.sh examples/wallpaper/rei.png \
+  -o /tmp/splash.png --blur 0x30 --dim 0.4 --res 1920x1080
+sudo cp /tmp/splash.png /boot/splash.png
+```
+
 Si querés QOI:
 ```bash
 magick /boot/splash.png -define qoi:codec=1 /boot/splash.qoi

@@ -197,6 +197,65 @@ interface_help_hidden: no
 
 ---
 
+## Blur y "máxima calidad"
+
+### Limine no puede difuminar
+
+No hay opción de blur, ni de sharpen, ni de filtro. El wallpaper se decodifica
+y se dibuja **tal cual**. Pero el desenfoque se puede hacer **antes**, al
+preparar el fichero — y para eso está `scripts/make-wallpaper.sh`:
+
+```bash
+# wallpaper difuminado y velado, a la resolución exacta de la interfaz
+scripts/make-wallpaper.sh ~/Pictures/foto.png \
+  --blur 0x30 --dim 0.4 --res 1920x1080
+
+# lo mismo, con el velo en el color de fondo del tema
+scripts/make-wallpaper.sh ~/Pictures/foto.png \
+  --blur 0x30 --dim 0.45 --overlay "#191724" --res 1920x1080
+```
+
+| Opción | Qué hace |
+|---|---|
+| `--blur 0x30` | desenfoque gaussiano (0xRADIO) |
+| `--dim 0.4` | velo uniforme encima (0 = nada, 1 = negro). Baja el brillo **sin** aplastar los negros, que es lo que hace `-evaluate multiply` |
+| `--overlay COLOR` | el velo en otro color en vez de negro |
+| `--res 1920x1080` | escala a esa resolución con Lanczos y recorta al aspecto |
+| `--format qoi` | QOI: lossless y se decodifica más rápido que PNG |
+
+### Máxima calidad
+
+| Regla | Por qué |
+|---|---|
+| **El wallpaper debe medir al menos lo que la `interface_resolution`** | si es más chico, Limine lo escala (bilinear) y se ve borroso. 1:1 = nítido |
+| **PNG o QOI, ambos lossless** | JPEG tiene pérdida y a pantalla completa se nota el bloqueado |
+| **QOI si el tiempo de boot importa** | lossless como PNG y mucho más rápido de decodificar |
+| **Sin sharpen si hay blur** | el blur posterior deshace el sharpen |
+
+Limine **no tiene ninguna opción de calidad de imagen**: no hay un
+`image_quality` ni un `jpeg_quality`. La calidad es la del fichero que le des.
+
+### El detalle que más confunde: `term_background` y el margen
+
+`term_background` no es solo "el fondo del texto": es también **el color del
+degradado del margen** (`term_margin_gradient`).
+
+El degradado va de **transparente en el borde** a **opaco en el centro**, así
+que:
+
+| Config | Resultado |
+|---|---|
+| `term_background: B01E1E2E` (alpha B0) | panel translúcido con borde difuminado ← el look "card" |
+| `term_background: 00000000` + `term_margin: 0` | el wallpaper se ve limpio, sin panel |
+| `term_background: 00000000` + margen default (64) | wallpaper con un velo interior que se intensifica hacia el centro |
+
+**El valor por defecto del margen es 64 px** (cuando hay wallpaper), y
+`term_margin_gradient` es 4. Por eso, sin tocar nada, aparece un marco
+alrededor del área del menú.
+
+> El alpha es el **byte alto**: `A(rgb) = rgb >> 24`. `00000000` = totalmente
+> transparente, `FF000000` = negro opaco, `B01E1E2E` = 69% opaco.
+
 ## Lo que NO se puede
 
 | Pedido | ¿Se puede? | Por qué / alternativa |

@@ -80,6 +80,10 @@ mkdir -p "$BIN_DIR"
 install -m 755 "$REPO_DIR/examples/limine-preview.sh" "$BIN_DIR/limine-preview"
 ok "$BIN_DIR/limine-preview"
 
+# El generador de wallpapers (blur + velo + resolucion)
+install -m 755 "$REPO_DIR/scripts/make-wallpaper.sh" "$BIN_DIR/make-wallpaper"
+ok "$BIN_DIR/make-wallpaper"
+
 # Un shim en /usr/local/bin para que `sudo limine-preview` funcione:
 # ~/.local/bin no esta en el secure_path de sudo.
 if [[ -w /usr/local/bin ]] || sudo -n true 2>/dev/null; then
