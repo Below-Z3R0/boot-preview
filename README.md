@@ -214,20 +214,54 @@ quedan propiedad de root.
 
 ## Wallpapers: blur y calidad
 
-Limine **no puede difuminar** una imagen — la dibuja tal cual. Pero el
-desenfoque se puede hacer antes, al preparar el fichero:
+Limine **no puede difuminar** una imagen — la dibuja tal cual. Y su
+`term_margin_gradient` **no es un blur**: es un velo del color de
+`term_background`, que se ve mal. La solución es hacer el blur **antes**, en la
+imagen, y dejar a Limine solo con el wallpaper.
+
+### El pipeline
 
 ```bash
-# difuminado + velo, a la resolución exacta de la interfaz
-scripts/make-wallpaper.sh ~/Pictures/foto.png \
-  --blur 0x30 --dim 0.4 --res 1920x1080
+make-wallpaper IMAGEN -o SALIDA [opciones]
+```
+
+| Orden | Qué hace |
+|---|---|
+| 1. `--esrgan anime` | upscale x4 con IA (**más detalle**: nitidez 4.617 → 7.656) |
+| 2. `--res 1920x1080` | baja a la resolución de la interfaz con Lanczos (**1:1, sin reescalado**) |
+| 3. `--blur 0x30` | **desenfoque gaussiano pre-renderizado** |
+
+```bash
+# el wallpaper definitivo: más detalle, a la resolución exacta, y difuminado
+make-wallpaper examples/wallpaper/rei.png -o /tmp/splash.png \
+  --esrgan anime --res 1920x1080 --blur 0x30
+sudo cp /tmp/splash.png /boot/splash.png
+```
+
+Y la config de Limine, **sin margen ni degradado** (que es lo que se veía feo):
+
+```ini
+term_margin: 0
+term_margin_gradient: 0
+term_background: FF191924
+term_foreground: e0def4
+```
+
+> El alpha de `term_background` va **al revés** de lo que dice la doc oficial
+> (`common/lib/gterm.c`: `alpha = 255 - A(fg)`). `TT=00` → el color tapa el
+> wallpaper (recuadro negro). `TT=FF` → pasa el wallpaper (limpio).
+
+### Otras opciones
+
+```bash
+# velo uniforme encima (si el texto no se lee)
+make-wallpaper.sh foto.png --blur 0x30 --dim 0.4 --res 1920x1080
 
 # el velo en el color de fondo del tema
-scripts/make-wallpaper.sh ~/Pictures/foto.png \
-  --blur 0x30 --dim 0.45 --overlay "#191724" --res 1920x1080
+make-wallpaper.sh foto.png --blur 0x30 --dim 0.45 --overlay "#191724"
 
 # versión QOI (lossless y se decodifica más rápido que PNG)
-scripts/make-wallpaper.sh ~/Pictures/foto.png --res 1920x1080 --format qoi
+make-wallpaper.sh foto.png --res 1920x1080 --format qoi
 ```
 
 **Para máxima calidad** hay dos caminos:

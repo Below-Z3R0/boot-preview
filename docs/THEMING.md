@@ -241,8 +241,12 @@ unzip -j /tmp/esr.zip 'models/*' -d ~/.local/bin/models/
 ### Limine no puede difuminar
 
 No hay opción de blur, ni de sharpen, ni de filtro. El wallpaper se decodifica
-y se dibuja **tal cual**. Pero el desenfoque se puede hacer **antes**, al
-preparar el fichero — y para eso está `scripts/make-wallpaper.sh`:
+y se dibuja **tal cual**. Y `term_margin_gradient` **no es un blur**: es un velo
+del color de `term_background` mezclado en los bordes del área del texto — se
+ve mal, y no es lo que uno quiere.
+
+El desenfoque se hace **antes**, al preparar el fichero — y para eso está
+`scripts/make-wallpaper.sh`:
 
 ```bash
 # wallpaper difuminado y velado, a la resolución exacta de la interfaz
@@ -318,9 +322,13 @@ fondo.
 
 | Config | Resultado |
 |---|---|
-| `term_background: FF191924` + `term_margin: 64` | **wallpaper limpio**, el menú encima ← lo más "normal" |
-| `term_background: FF191924` + `term_margin: 0` | wallpaper limpio, sin marco, pero el texto se mezcla con el dibujo |
+| `term_background: FF191924` + `term_margin: 0` + `term_margin_gradient: 0` | **wallpaper limpio, sin marco ni velo** ← con el blur pre-renderizado en la imagen |
+| `term_background: FF191924` + `term_margin: 64` | wallpaper limpio con un marco sutil |
 | `term_background: 80191924` + `term_margin: 120` | panel translúcido con borde difuminado ← el look "card" |
+
+**La combinación recomendada** cuando el blur va pre-renderizado: margin 0,
+gradient 0 y alpha `FF`. El wallpaper se ve **tal cual**, y el texto se lee
+porque el desenfoque ya está en la imagen.
 
 ## Lo que NO se puede
 
