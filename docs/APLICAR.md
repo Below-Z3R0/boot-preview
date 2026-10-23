@@ -10,24 +10,55 @@ con rollback.
 | # | Path | Qué es | ¿Se edita a mano? |
 |---|---|---|---|
 | **1** | `~/.config/limine-preview/limine.conf` | la config de prueba del preview | ✅ sí, es la que iterás |
-| **2** | `/boot/limine.conf` | la config compilada que Limine lee en el boot (99 KB, autogenerada) | ❌ se regenera |
-| **3** | `/etc/default/limine` | la fuente | ✅ **acá va el theming** |
+| **2** | `/boot/limine.conf` | la config que Limine lee en el boot (100 KB) | ✅ **acá va el theming** |
+| **3** | `/etc/default/limine` | `ESP_PATH`, `KERNEL_CMDLINE` y `BOOT_ORDER` | ✅ pero **no** el theming |
 
 El preview usa la **#1** (o la **#2** con `--real`). Para el cambio de verdad
-se edita la **#3**.
+se edita la **#2**.
 
-## ⚠️ Lo primero: dónde se edita
+## ⚠️ Lo primero: dónde se edita (verificado en este sistema)
 
-Limine tiene **dos** archivos de configuración del sistema y solo uno se edita
-a mano:
+**El theming va en `/boot/limine.conf`, directo.** No en
+`/etc/default/limine`.
 
-| Archivo | Qué es | ¿Se edita? |
+| Lo que se suele creer | Realidad (verificada) |
+|---|---|
+| "`/boot/limine.conf` se regenera desde `/etc/default/limine`" | ❌ no. `/etc/default/limine` solo aporta `ESP_PATH`, `KERNEL_CMDLINE` y `BOOT_ORDER` |
+| "si lo editás a mano se pierde" | ❌ no. Las herramientas **editan** el conf, no lo regeneran |
+| "hay que correr `limine-mkinitcpio`" | ❌ no hace falta para el theming |
+
+**Cómo se comprobó**: se agregó el bloque de theming a `/boot/limine.conf` y
+después se corrió `sudo limine-snapper-sync` (que es lo que reescribe el conf
+cuando se crea un snapshot). El bloque **sobrevivió** intacto, y el `diff` de
+las entradas contra el backup dio **cero diferencias**.
+
+| Herramienta | Qué hace con el conf | ¿Preserva el theming? |
 |---|---|---|
-| `/etc/default/limine` | la **fuente**: cmdline del kernel, boot order, y lo que agreguemos de theming | ✅ **acá** |
-| `/boot/limine.conf` | la config **compilada** que Limine lee en el boot | ❌ se regenera |
+| `limine-entry-tool` (`--add-kernel`, `--remove-kernel`) | edita las entradas | ✅ |
+| `limine-snapper-sync` | agrega/quita la sección Snapshots | ✅ |
+| `limine-mkinitcpio` | llama a `limine-entry-tool` | ✅ |
 
-`/boot/limine.conf` lo genera `limine-mkinitcpio` desde `/etc/default/limine`.
-**Si lo editás a mano, los cambios se pierden en el próximo `mkinitcpio`.**
+**El riesgo real** no es la edición manual: es un `limine-update` o un
+`limine-install` que **sí** regeneran el conf desde cero. Si eso pasa, el
+theming se pierde y hay que volver a aplicar el bloque.
+
+### El checksum del config
+
+`/etc/limine-entry-tool.conf` tiene `ENABLE_VERIFICATION=yes`, pero eso
+verifica los **ficheros del kernel** (los `module_path` con `#hash`), no el
+config.
+
+El checksum del **config** es otra cosa, y **no está enrolado** en este
+sistema: `ENABLE_ENROLL_LIMINE_CONFIG` está comentado en
+`/etc/limine-entry-tool.conf` (y también en `/etc/default/limine`). Por eso
+editar el conf no hace fallar el boot.
+
+Si algún día se habilita (`ENABLE_ENROLL_LIMINE_CONFIG=yes`), hay que
+re-enrolar después de cada cambio:
+
+```bash
+sudo limine-enroll-config
+```
 
 ```bash
 cat /etc/mkinitcpio.conf.d/10-limine-snapper-sync.conf 2>/dev/null
@@ -106,10 +137,11 @@ magick /boot/splash.png -define qoi:codec=1 /boot/splash.qoi
 ## Paso 2 — El bloque de theming
 
 `examples/theming-rosepine.conf` tiene el bloque. Pegalo en
-`/etc/default/limine`:
+**`/boot/limine.conf`**, después de las opciones globales que ya están y
+**antes de la primera entrada** (una línea que empieza por `/`):
 
 ```bash
-sudo nano /etc/default/limine
+sudo nano /boot/limine.conf
 ```
 
 ```ini
@@ -153,20 +185,17 @@ interface_help_colour_bright: e0def4
 
 ---
 
-## Paso 3 — Regenerar la config
-
-```bash
-sudo limine-mkinitcpio
-```
-
-Verificar que el bloque llegó al `.conf` compilado:
+## Paso 3 — Verificar
 
 ```bash
 sudo grep -E "^wallpaper|^term_|^interface_" /boot/limine.conf
+ls -la /boot/splash.png
 ```
 
-Deberías ver las líneas del bloque de theming. **Si no aparecen, el bloque
-no estaba en `/etc/default/limine`** (o estaba después de una entrada).
+Deberías ver las líneas del bloque de theming y el wallpaper en `/boot`.
+
+**No hace falta `limine-mkinitcpio`**: el conf ya está actualizado y las
+herramientas lo preservan.
 
 ---
 
@@ -183,30 +212,31 @@ sudo reboot
 Si algo quedó mal:
 
 ```bash
-# 1. Sacar el bloque de theming de /etc/default/limine
-sudo nano /etc/default/limine
+# 1. Sacar el bloque de theming de /boot/limine.conf
+sudo nano /boot/limine.conf
 
-# 2. Regenerar
-sudo limine-mkinitcpio
-
-# 3. Reiniciar
+# 2. Reiniciar
 sudo reboot
 ```
 
-O, más rápido, sin tocar la config:
+O, más rápido, restaurar el backup:
 
 ```bash
-# Quitar solo el wallpaper
+sudo cp /boot/limine.conf.pre-theming /boot/limine.conf
+sudo reboot
+```
+
+O quitar solo el wallpaper:
+
+```bash
 sudo rm /boot/splash.png
-sudo limine-mkinitcpio
 sudo reboot
 ```
 
-**Antes de todo, un backup** ( Limine **no tiene** backup automático de
-`/etc/default/limine`):
+**Antes de todo, un backup**:
 
 ```bash
-sudo cp /etc/default/limine /etc/default/limine.bak
+sudo cp /boot/limine.conf /boot/limine.conf.pre-theming
 ```
 
 ---

@@ -371,23 +371,31 @@ animaciones, video, blur. El menú es **texto plano** (`common/menu.c` →
 
 ## Aplicar el tema al Limine real
 
-El preview es para iterar; para el cambio de verdad hay que tocar
-`/etc/default/limine` (la fuente), **no** `/boot/limine.conf` (que se
-sobrescribe). El paso a paso está en
-[`docs/APLICAR.md`](docs/APLICAR.md).
+El preview es para iterar; para el cambio de verdad el bloque de theming va
+en **`/boot/limine.conf`**, antes de la primera entrada (una línea que empieza
+por `/`).
+
+> Contraryendo lo que se suele creer, **`/etc/default/limine` no genera el
+> conf**: solo aporta `ESP_PATH`, `KERNEL_CMDLINE` y `BOOT_ORDER`. Y
+> **`limine-snapper-sync` preserva** el bloque (verificado: sobrevive intacto
+> y el diff de las entradas da cero). El paso a paso está en
+> [`docs/APLICAR.md`](docs/APLICAR.md).
 
 ```bash
-# 1. El wallpaper
-sudo cp examples/wallpaper/rei.png /boot/splash.png
+# 1. Backup
+sudo cp /boot/limine.conf /boot/limine.conf.pre-theming
 
-# 2. El bloque de theming en /etc/default/limine
-sudo nano /etc/default/limine
+# 2. El wallpaper (la version difuminada, ya con el blur aplicado)
+sudo cp ~/.config/limine-preview/wallpaper/rei-blur.png /boot/splash.png
 
-# 3. Regenerar la config compilada
-sudo limine-mkinitcpio
+# 3. El bloque de theming, antes de la primera entrada
+sudo nano /boot/limine.conf
 
 # 4. Reiniciar
+sudo reboot
 ```
+
+No hace falta `limine-mkinitcpio`.
 
 ## Documentación
 
