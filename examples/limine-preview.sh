@@ -16,9 +16,12 @@ set -euo pipefail
 # ── Rutas ────────────────────────────────────────────────────────────────────
 LIMINE_DIR="${LIMINE_DIR:-/usr/share/limine}"
 WORK_DIR="${WORK_DIR:-/tmp/limine-preview}"
-DEFAULT_CONF="${HOME}/.config/limine-preview/limine.conf"
+# La config de PRUEBA (la que carga el preview por default).
+# Respeta XDG_CONFIG_HOME, igual que install.sh.
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
+DEFAULT_CONF="$CONFIG_DIR/limine.conf"
 # El wallpaper por defecto es el del repo. Cualquier otro se pasa con -w.
-DEFAULT_WALLPAPER="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview/wallpaper/rei.png"
+DEFAULT_WALLPAPER="$CONFIG_DIR/wallpaper/rei.png"
 
 conf="${DEFAULT_CONF}"
 wallpaper="${DEFAULT_WALLPAPER}"

@@ -5,6 +5,19 @@ Limine aparece en la ventana de QEMU.
 
 ---
 
+## Las tres configs
+
+| # | Path | Qué es | ¿La carga el preview? |
+|---|---|---|---|
+| **1** | `~/.config/limine-preview/limine.conf` | la config **de prueba** | ✅ por default |
+| **2** | `/boot/limine.conf` | la config **compilada** que Limine lee en el boot | ✅ solo con `--real` |
+| **3** | `/etc/default/limine` | la **fuente** (la editás vos) | ❌ nunca se toca |
+
+La #2 la genera `limine-mkinitcpio` desde la #3. El preview lee la #1 o la #2
+y **no escribe ninguna**.
+
+---
+
 ## El mapa: quién es quién
 
 | Pieza | Dónde vive | Qué hace |
@@ -23,12 +36,16 @@ Limine aparece en la ventana de QEMU.
 ### 1. Parseo de argumentos
 
 ```bash
-config="${HOME}/.config/limine-preview/limine.conf"
-wallpaper="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview/wallpaper/rei.png"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
+config="$CONFIG_DIR/limine.conf"        # la config de prueba (la #1)
+wallpaper="$CONFIG_DIR/wallpaper/rei.png"
 ```
 
 Opciones: `-c/--config`, `-w/--wallpaper`, `--real`, `--resolution`,
 `--shot`, `--gui`, `--timeout`.
+
+Con `--real`, `config` pasa a ser la config compilada del sistema (la #2),
+copiada a un temporal con `sudo cat`.
 
 ### 2. Si es `--real`: copiar la config del sistema
 

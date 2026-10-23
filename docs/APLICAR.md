@@ -5,9 +5,21 @@ con rollback.
 
 ---
 
+## Las tres configs (antes de tocar nada)
+
+| # | Path | Qué es | ¿Se edita a mano? |
+|---|---|---|---|
+| **1** | `~/.config/limine-preview/limine.conf` | la config de prueba del preview | ✅ sí, es la que iterás |
+| **2** | `/boot/limine.conf` | la config compilada que Limine lee en el boot (99 KB, autogenerada) | ❌ se regenera |
+| **3** | `/etc/default/limine` | la fuente | ✅ **acá va el theming** |
+
+El preview usa la **#1** (o la **#2** con `--real`). Para el cambio de verdad
+se edita la **#3**.
+
 ## ⚠️ Lo primero: dónde se edita
 
-Limine tiene **dos** archivos de configuración y solo uno se edita a mano:
+Limine tiene **dos** archivos de configuración del sistema y solo uno se edita
+a mano:
 
 | Archivo | Qué es | ¿Se edita? |
 |---|---|---|

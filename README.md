@@ -29,6 +29,40 @@ scripts/
 └── install.sh             # deja todo andando
 ```
 
+## Las tres configs de Limine
+
+Limine tiene **más de un** fichero de configuración, y el preview las usa de
+forma distinta. Esta tabla es la que hay que tener clara:
+
+| # | Path | Qué es | Quién la escribe | ¿La carga el preview? |
+|---|---|---|---|---|
+| **1** | `~/.config/limine-preview/limine.conf` | la config **de prueba** — la que edita el usuario para iterar el tema | `install.sh` la instala desde `examples/limine-preview.conf`; el script la inyecta con el wallpaper | ✅ **por default** |
+| **2** | `/boot/limine.conf` | la config **compilada** que Limine lee de verdad en el boot (99 KB, autogenerada) | `limine-mkinitcpio` la genera desde la #3 | ✅ solo con `--real` (se lee con sudo) |
+| **3** | `/etc/default/limine` | la **fuente** — cmdline del kernel, boot order, y el theming que agregues | **la editás vos** | ❌ nunca se toca |
+
+**El flujo del sistema real**:
+
+```
+/etc/default/limine          ← la fuente: la editás vos
+        │  limine-mkinitcpio
+        ▼
+/boot/limine.conf            ← la compilada: la regenera el hook de initramfs
+        │  el firmware la busca en la partición FAT
+        ▼
+   Limine arranca y lee esa
+```
+
+**Y el preview** usa la **#1** (una config tuya, de prueba) o, con `--real`,
+lee la **#2** (la compilada real) para mostrarte cómo quedó tu setup de verdad.
+**Nunca escribe ninguna de las dos.**
+
+Los assets van aparte, en la partición FAT que Limine lee:
+
+| Path | Qué es |
+|---|---|
+| `/boot/splash.png` | el wallpaper del boot |
+| `/boot/font.F16` | la fuente custom (CP437 bitmap) |
+
 ## Instalación
 
 ```bash
@@ -58,6 +92,18 @@ install -m 644 examples/wallpaper/rei.png ~/.config/limine-preview/wallpaper/rei
 El `install.sh` hace todo eso y además deja un **shim** en
 `/usr/local/bin/limine-preview` para que `sudo limine-preview` también
 funcione (ver [la trampa del `sudo`](#las-trampas)).
+
+### Qué queda instalado y dónde
+
+| Path | Qué es |
+|---|---|
+| `~/.local/bin/limine-preview` | el script (o `~/.config/limine-preview/limine.conf` si preferís `$XDG_CONFIG_HOME`) |
+| `~/.config/limine-preview/limine.conf` | la **config de prueba** (la #1 de la tabla de arriba) |
+| `~/.config/limine-preview/wallpaper/rei.png` | el wallpaper de ejemplo |
+| `/usr/local/bin/limine-preview` | el shim para `sudo limine-preview` |
+
+Y **no** toca nada del sistema: ni `/boot/limine.conf`, ni
+`/etc/default/limine`, ni el initramfs.
 
 ## Uso
 
