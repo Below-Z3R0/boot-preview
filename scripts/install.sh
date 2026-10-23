@@ -1,33 +1,23 @@
 #!/usr/bin/env bash
 # install.sh — deja limine-preview funcionando.
 #
-#   ./scripts/install.sh              # instala lo basico
-#   ./scripts/install.sh --with-theming   # ademas copia el wallpaper a /boot
+#   ./scripts/install.sh
 #
-# Que hace:
-#   1. Verifica/instala las dependencias (qemu, xorriso, OVMF)
-#   2. Compone el script a ~/.local/bin/limine-preview
-#   3. Compone la config de prueba a ~/.config/limine-preview/limine.conf
-#   4. Copia el wallpaper de ejemplo
-#   5. (opcional) deja el tema listo para aplicar al /etc/default/limine real
+# Que hace, en orden:
+#   1. Verifica/instala las dependencias (qemu, xorriso, OVMF, imagemagick)
+#   2. Instala los scripts en ~/.local/bin/
+#   3. Crea ~/.config/limine-preview/ con la config de prueba y el wallpaper
+#   4. Guarda la ruta del repo (para que el CLI sepa dónde está)
+#   5. Crea <repo>/previews/ para las capturas
+#
+# NO toca nada del sistema: ni /boot/limine.conf, ni /etc/default/limine,
+# ni el initramfs. Para aplicar el tema de verdad: limine-preview apply
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREFIX="${XDG_CONFIG_HOME:-$HOME/.config}"
 BIN_DIR="$HOME/.local/bin"
 PREVIEW_DIR="$PREFIX/limine-preview"
-with_theming=0
-
-for arg in "$@"; do
-  case "$arg" in
-    --with-theming) with_theming=1 ;;
-    -h|--help)
-      sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
-      exit 0
-      ;;
-    *) echo "opción desconocida: $arg" >&2; exit 1 ;;
-  esac
-done
 
 say() { printf '  %s\n' "$*"; }
 step() { printf '\n\033[1;38;2;235;194;186m▸\033[0m \033[1m%s\033[0m\n' "$*"; }
@@ -35,26 +25,22 @@ warn() { printf '  \033[38;2;246;153;150m! %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[38;2;125;207;216m✓\033[0m %s\n' "$*"; }
 
 # ── 1. Dependencias ────────────────────────────────────────────────────────
-step "1/4  Dependencias"
+step "1/5  Dependencias"
 
-need_sudo=0
 install_pkgs=()
 
-command -v qemu-system-x86_64 >/dev/null 2>&1 || { install_pkgs+=(qemu-desktop); need_sudo=1; }
-command -v xorriso            >/dev/null 2>&1 || { install_pkgs+=(libisoburn); need_sudo=1; }
-command -v magick             >/dev/null 2>&1 || { install_pkgs+=(imagemagick); need_sudo=1; }
+command -v qemu-system-x86_64 >/dev/null 2>&1 || install_pkgs+=(qemu-desktop)
+command -v xorriso            >/dev/null 2>&1 || install_pkgs+=(libisoburn)
+command -v magick             >/dev/null 2>&1 || install_pkgs+=(imagemagick)
+command -v socat              >/dev/null 2>&1 || install_pkgs+=(socat)
 
 if [[ ${#install_pkgs[@]} -gt 0 ]]; then
   say "Faltan: ${install_pkgs[*]}"
-  if [[ $need_sudo == 1 ]]; then
-    say "Instalando con sudo (puede pedir contraseña)..."
-    sudo pacman -S --needed --noconfirm "${install_pkgs[@]}" >/dev/null
-  else
-    pacman -S --needed --noconfirm "${install_pkgs[@]}" >/dev/null
-  fi
+  say "Instalando con sudo (puede pedir contraseña)..."
+  sudo pacman -S --needed --noconfirm "${install_pkgs[@]}" >/dev/null
   ok "instalados: ${install_pkgs[*]}"
 else
-  ok "qemu-system-x86_64, xorriso y magick ya estaban"
+  ok "qemu-system-x86_64, xorriso, magick y socat ya estaban"
 fi
 
 # OVMF: sin el, el menu arranca en modo texto y no se ve el wallpaper.
@@ -73,35 +59,16 @@ else
   warn "sin /dev/kvm: la VM va a ir por emulación (lenta)"
 fi
 
-# Los modelos de Real-ESRGAN (para el upscale con IA). El binario ya esta
-# instalado pero busca los .param/.bin en ~/.local/bin/models/.
-ESR_MODELS_DIR="$BIN_DIR/models"
-if [[ ! -f "$ESR_MODELS_DIR/realesrgan-x4plus-anime.param" ]]; then
-  say "Bajando los modelos de Real-ESRGAN (~47 MB)..."
-  if curl -sSL -o /tmp/esr-models.zip \
-      https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip \
-      2>/dev/null && unzip -j -o /tmp/esr-models.zip 'models/*' -d "$ESR_MODELS_DIR" >/dev/null 2>&1; then
-    ok "modelos de Real-ESRGAN en $ESR_MODELS_DIR"
-  else
-    warn "no se pudieron bajar los modelos de Real-ESRGAN (el upscale con IA queda sin usar)"
-  fi
-  rm -f /tmp/esr-models.zip
-else
-  ok "modelos de Real-ESRGAN ya estaban"
-fi
-
-# ── 2. El script ───────────────────────────────────────────────────────────
-step "2/4  El script"
+# ── 2. Los scripts ─────────────────────────────────────────────────────────
+step "2/5  Los scripts"
 
 mkdir -p "$BIN_DIR"
 install -m 755 "$REPO_DIR/examples/limine-preview.sh" "$BIN_DIR/limine-preview"
 ok "$BIN_DIR/limine-preview"
 
-# El generador de wallpapers (blur + velo + resolucion)
 install -m 755 "$REPO_DIR/scripts/make-wallpaper.sh" "$BIN_DIR/make-wallpaper"
 ok "$BIN_DIR/make-wallpaper"
 
-# El que genera las dos versiones (real y difuminada)
 install -m 755 "$REPO_DIR/scripts/prepare-wallpapers.sh" "$BIN_DIR/prepare-wallpapers"
 ok "$BIN_DIR/prepare-wallpapers"
 
@@ -134,10 +101,10 @@ else
   warn "sin shim: `sudo limine-preview` no va a funcionar"
 fi
 
-# ── 3. La config de prueba ─────────────────────────────────────────────────
-step "3/4  La config de prueba"
+# ── 3. La config de prueba y el wallpaper ───────────────────────────────────
+step "3/5  La config de prueba"
 
-mkdir -p "$PREVIEW_DIR"
+mkdir -p "$PREVIEW_DIR/wallpaper"
 if [[ -f "$PREVIEW_DIR/limine.conf" ]]; then
   cp "$PREVIEW_DIR/limine.conf" "$PREVIEW_DIR/limine.conf.bak"
   say "hay una config previa: guardada como limine.conf.bak"
@@ -146,30 +113,56 @@ install -m 644 "$REPO_DIR/examples/limine-preview.conf" "$PREVIEW_DIR/limine.con
 ok "$PREVIEW_DIR/limine.conf"
 
 # ── 4. El wallpaper ────────────────────────────────────────────────────────
-step "4/4  El wallpaper"
+step "4/5  El wallpaper"
 
-mkdir -p "$PREVIEW_DIR/wallpaper"
-install -m 644 "$REPO_DIR/examples/wallpaper/rei.png" "$PREVIEW_DIR/wallpaper/rei.png"
-ok "$PREVIEW_DIR/wallpaper/rei.png"
-
-if [[ $with_theming == 1 ]]; then
-  step "extra  Copiar el wallpaper a /boot (para el Limine real)"
-  sudo cp "$REPO_DIR/examples/wallpaper/rei.png" /boot/splash.png
-  ok "/boot/splash.png"
-  warn "esto NO aplica el tema: falta el bloque en /etc/default/limine"
-  warn "mira docs/APLICAR.md para el paso a paso completo"
+if [[ -f "$PREVIEW_DIR/wallpaper/rei.png" ]]; then
+  ok "$PREVIEW_DIR/wallpaper/rei.png (ya estaba)"
+else
+  install -m 644 "$REPO_DIR/examples/wallpaper/rei.png" "$PREVIEW_DIR/wallpaper/rei.png"
+  ok "$PREVIEW_DIR/wallpaper/rei.png"
 fi
+
+# ── 5. La ruta del repo y la carpeta de previews ───────────────────────────
+step "5/5  El repo y la carpeta de previews"
+
+# El CLI lo lee para saber dónde guardar las capturas (previews/) y dónde
+# vive el repo.
+printf '%s\n' "$REPO_DIR" > "$PREVIEW_DIR/repo"
+ok "$PREVIEW_DIR/repo -> $REPO_DIR"
+
+mkdir -p "$REPO_DIR/previews"
+ok "$REPO_DIR/previews (capturas)"
+
+cat > "$PREVIEW_DIR/.gitignore" <<'EOF'
+# El wallpaper por defecto y sus variantes no van al repo.
+wallpaper/
+EOF
+ok "$PREVIEW_DIR/.gitignore"
 
 # ── Listo ──────────────────────────────────────────────────────────────────
 printf '\n\033[1;38;2;125;207;216m✓ Listo.\033[0m\n\n'
-say "Ver el menu (ventana de QEMU):"
-printf '    \033[1mlimine-preview\033[0m\n\n'
-say "Verlo con tu config real de /boot/limine.conf:"
-printf '    \033[1mlimine-preview --real\033[0m\n\n'
-say "Capturar a PNG:"
-printf '    \033[1mlimine-preview --shot ~/preview.png\033[0m\n\n'
-say "Generar las dos versiones del wallpaper (real y difuminada):"
-printf '    \033[1mprepare-wallpapers\033[0m\n\n'
-say "Los comandos con la ventana abierta: flechas, ENTER para bootear,"
-say "E para editar la config, F1 para el firmware, ESC para salir."
-say "Ctrl+Q cierra QEMU."
+cat <<EOF
+  Ver el menú (ventana de QEMU):
+      limine-preview
+
+  Verlo con tu config real de /boot/limine.conf:
+      limine-preview real
+
+  Capturar a PNG (van a $REPO_DIR/previews/):
+      limine-preview shot
+
+  Poner una imagen nueva como wallpaper del preview:
+      limine-preview add ~/Pictures/foto.png
+
+  Editar la config del preview:
+      limine-preview edit
+
+  Aplicar al Limine real (wallpaper + config visual):
+      limine-preview apply
+
+  Generar las dos versiones del wallpaper (real y difuminada):
+      limine-preview wallpapers
+
+  En la ventana de QEMU: flechas, ENTER para bootear, E para editar la
+  config, F1 para el firmware, ESC para salir. Ctrl+Q cierra QEMU.
+EOF

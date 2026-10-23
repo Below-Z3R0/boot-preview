@@ -1,6 +1,8 @@
-# Preview generado
+# Capturas del preview (se regeneran con `limine-preview shot`)
+previews/*.png
+
+# ISO generados
 *.iso
-preview.png
 shot.ppm
 
 # Config local (puede tener rutas personales)

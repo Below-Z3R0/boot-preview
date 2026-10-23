@@ -199,21 +199,19 @@ interface_help_hidden: no
 
 ## Blur y "máxima calidad"
 
-### Más calidad: Real-ESRGAN
+### Más calidad: Upscayl
 
 Limine no tiene opción de calidad de imagen, pero se puede **mejorar la
-imagen antes** con IA. `scripts/make-wallpaper.sh` con `--esrgan` usa
-`realesrgan-ncnn-vulkan` (que ya estaba instalado, pero **sin los modelos**):
+imagen antes** con IA. Para eso está
+[Upscayl](https://github.com/upscayl/upscayl), la app de escritorio que trae
+los modelos de Real-ESRGAN (y ESRGAN anime).
+
+**El flujo**: se mejora la imagen fuera de este repo y se mete al preview.
 
 ```bash
-# anime: el modelo reentrenado specifically para anime
-make-wallpaper.sh rei.png -o /tmp/splash.png --esrgan anime --res 1920x1080
-
-# video anime (más rápido, 12 s vs 75 s)
-make-wallpaper.sh rei.png -o /tmp/splash.png --esrgan animevideo
-
-# general
-make-wallpaper.sh foto.jpg -o /tmp/splash.png --esrgan general
+# 1. en Upscayl: escala x4 con el modelo "RealESRGAN Anime" y guardá
+# 2. la imagen entra al preview
+limine-preview add ~/Pictures/foto-4x.png
 ```
 
 **El truco**: upscalear x4 y después **bajar** a la resolución final con
@@ -228,15 +226,8 @@ Medido con el Laplaciano (nitidez) sobre el wallpaper de ejemplo:
 | frame extraído del MP4 | 4.617 |
 | **Real-ESRGAN x4 + downscale** | **7.656** (+66%) |
 
-**Los modelos** (los busca en `~/.local/bin/models/`) vienen del release
-`v0.2.5.0` de `xinntao/Real-ESRGAN`:
-
-```bash
-mkdir -p ~/.local/bin/models
-curl -sSL -o /tmp/esr.zip \
-  https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip
-unzip -j /tmp/esr.zip 'models/*' -d ~/.local/bin/models/
-```
+> Este repo **no** baja modelos ni depende de Real-ESRGAN: el upscale es un
+> paso externo, con la app que ya usás.
 
 ### Limine no puede difuminar
 

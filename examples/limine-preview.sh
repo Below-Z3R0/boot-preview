@@ -7,10 +7,14 @@
 #
 #   limine-preview                # preview del menú (lo de siempre)
 #   limine-preview real           # con tu config real de /boot/limine.conf
-#   limine-preview shot           # captura a PNG y sale
-#   limine-preview shot mi.png    # captura a un archivo
-#   limine-preview wall foto.png  # preview con otro wallpaper
-#   limine-preview wallpapers     # regenera las dos versiones del wallpaper
+#   limine-preview shot           # captura a PNG (en <repo>/previews/)
+#   limine-preview add IMAGEN     # pone una imagen como wallpaper del preview
+#   limine-preview edit           # abre la config del preview en un editor
+#   limine-preview wall IMAGEN    # preview con otro wallpaper (sin instalarlo)
+#   limine-preview wallpapers     # genera las dos versiones del wallpaper
+#   limine-preview apply          # aplica wallpaper + config al Limine real
+#   limine-preview apply config   # solo la config visual
+#   limine-preview apply wallpaper # solo el wallpaper
 #   limine-preview setup          # instala dependencias y archivos
 #   limine-preview help           # esta ayuda
 #
@@ -26,6 +30,11 @@ DEFAULT_CONF="$CONFIG_DIR/limine.conf"
 # El wallpaper por defecto es el del repo. Cualquier otro se pasa con `wall`.
 DEFAULT_WALLPAPER="$CONFIG_DIR/wallpaper/rei.png"
 
+# La ruta del repo, la guarda install.sh. Se usa para las capturas (previews/).
+REPO_DIR=""
+[[ -f "$CONFIG_DIR/repo" ]] && REPO_DIR="$(cat "$CONFIG_DIR/repo")"
+[[ -d "$REPO_DIR" ]] || REPO_DIR=""
+
 conf="${DEFAULT_CONF}"
 wallpaper="${DEFAULT_WALLPAPER}"
 shot=""
@@ -34,6 +43,8 @@ resolution="1920x1080"
 timeout_secs="15"
 real=0
 command="preview"
+add_image=""
+apply_what="all"
 
 usage() {
   cat <<'EOF'
@@ -42,20 +53,37 @@ limine-preview — ver el menú de Limine sin reiniciar
 USO
   limine-preview [comando] [opciones]
 
-COMANDOS
+VER
   (ninguno)        Preview del menú, con la config de prueba
   real             Preview con tu config real de /boot/limine.conf
-  shot [archivo]   Captura el menú a un PNG y sale
-  wall <imagen>    Preview con otro wallpaper
-  wallpapers       Regenera las dos versiones del wallpaper (real y difuminada)
+  wall <imagen>    Preview con otro wallpaper (sin instalarlo)
+
+CAPTURAR
+  shot [archivo]   Captura el menú a un PNG. Sin nombre va a
+                   <repo>/previews/ con timestamp
+
+EDITAR
+  add <imagen>     Pone una imagen como wallpaper del preview
+  edit             Abre la config del preview en tu editor
+
+APLICAR AL LIMINE REAL
+  apply             Wallpaper + config visual
+  apply config      Solo la config visual
+  apply wallpaper   Solo el wallpaper
+
+WALLPAPERS
+  wallpapers       Genera las dos versiones (real y difuminada)
+
+OTROS
   setup            Instala dependencias y archivos
   help             Esta ayuda
 
 EJEMPLOS
   limine-preview
   limine-preview shot
-  limine-preview wall ~/Pictures/foto.png
-  limine-preview real
+  limine-preview add ~/Pictures/foto.png
+  limine-preview edit
+  limine-preview apply
 
 OPCIONES AVANZADAS
   -c, --config <ruta>     Config de Limine a usar
@@ -77,6 +105,18 @@ case "$cmd" in
   wall)        command="preview"
                 if [[ $# -lt 1 ]]; then echo "Falta la imagen" >&2; exit 1; fi
                 wallpaper="$1"; shift ;;
+  add)         command="add"
+                if [[ $# -lt 1 ]]; then echo "Falta la imagen" >&2; exit 1; fi
+                add_image="$1"; shift ;;
+  edit)        command="edit" ;;
+  apply)       command="apply"; apply_what="all"
+                if [[ $# -gt 0 && "$1" != -* ]]; then
+                  case "$1" in
+                    config|wallpaper) apply_what="$1"; shift ;;
+                    *) echo "Opción de apply desconocida: $1" >&2
+                       echo "  (valores: config, wallpaper)" >&2; exit 1 ;;
+                  esac
+                fi ;;
   wallpapers)  command="wallpapers" ;;
   setup)       command="setup" ;;
   help|-h|--help) usage; exit 0 ;;
@@ -106,6 +146,140 @@ done
 
 # ── Comandos que no son de preview ─────────────────────────────────────────
 case "$command" in
+
+  add)
+    # Pone una imagen como wallpaper del preview. La copia al directorio de
+    # wallpapers y actualiza el default, para que quede "instalada" y no
+    # haya que volver a pasarle la ruta.
+    [[ -f "$add_image" ]] || { echo "No existe: $add_image" >&2; exit 1; }
+    mkdir -p "$CONFIG_DIR/wallpaper"
+    target="$CONFIG_DIR/wallpaper/wallpaper.png"
+    cp "$add_image" "$target"
+    ok_msg="  ✓ $add_image  ->  $target"
+    echo "$ok_msg"
+    # El preview usa el wallpaper recien puesto
+    wallpaper="$target"
+    echo ""
+    echo "  Para verlo:  limine-preview"
+    echo "  Para aplicarlo al Limine real:  limine-preview apply wallpaper"
+    exit 0
+    ;;
+
+  edit)
+    # Abre la config del preview en un editor.
+    editor="${VISUAL_EDITOR:-${EDITOR:-}}"
+    if [[ -z "$editor" ]]; then
+      for candidate in code nvim micro nano vim; do
+        if command -v "$candidate" >/dev/null 2>&1; then editor="$candidate"; break; fi
+      done
+    fi
+    [[ -n "$editor" ]] || { echo "No encuentro un editor (proba con EDITOR=...)" >&2; exit 1; }
+    echo "  Abriendo $CONFIG_DIR/limine.conf con $editor"
+    exec "$editor" "$CONFIG_DIR/limine.conf"
+    ;;
+
+  apply)
+    # Aplica al Limine real. El wallpaper va a /boot/splash.png (la ESP) y el
+    # bloque de theming a /boot/limine.conf, antes de la primera entrada.
+    need_wallpaper=0
+    need_config=0
+    case "$apply_what" in
+      all)      need_wallpaper=1; need_config=1 ;;
+      config)   need_config=1 ;;
+      wallpaper) need_wallpaper=1 ;;
+    esac
+
+    echo "▸ Aplicando al Limine real"
+    echo ""
+
+    # ── El wallpaper ──
+    if [[ $need_wallpaper == 1 ]]; then
+      src_wall="$CONFIG_DIR/wallpaper/wallpaper.png"
+      [[ -f "$src_wall" ]] || src_wall="$DEFAULT_WALLPAPER"
+      [[ -f "$src_wall" ]] || { echo "No hay wallpaper que aplicar" >&2; exit 1; }
+      sudo cp "$src_wall" /boot/splash.png
+      echo "  ✓ wallpaper  ->  /boot/splash.png"
+    fi
+
+    # ── La config visual ──
+    if [[ $need_config == 1 ]]; then
+      # Se toma el bloque de theming de la config del PREVIEW (que es la
+      # que edita el usuario con `limine-preview edit`) y se inyecta en el
+      # conf real.
+      sudo python3 - "$CONFIG_DIR/limine.conf" <<'PY'
+import re, sys
+
+preview_path = sys.argv[1]
+real_path = "/boot/limine.conf"
+
+preview = open(preview_path, encoding="utf-8", errors="replace").read()
+real = open(real_path, encoding="utf-8", errors="replace").read()
+
+# Las opciones de theming que se llevan al Limine real.
+THEME_OPTS = [
+    "wallpaper", "wallpaper_style", "backdrop",
+    "term_margin", "term_margin_gradient", "term_background", "term_foreground",
+    "term_palette", "term_palette_bright", "term_font", "term_font_size",
+    "term_font_scale", "term_font_spacing",
+    "interface_resolution", "interface_rotation", "interface_branding",
+    "interface_branding_colour", "interface_help_colour",
+    "interface_help_colour_bright", "interface_help_hidden",
+]
+
+block = []
+for line in preview.splitlines():
+    m = re.match(r"^\s*([a-z_0-9]+)\s*:", line)
+    if m and m.group(1) in THEME_OPTS:
+        # El wallpaper del preview apunta al ISO (boot():/wallpaper.png);
+        # en el Limine real va a /boot/splash.png.
+        if m.group(1) == "wallpaper":
+            line = "wallpaper: boot():/splash.png"
+        block.append(line)
+
+if not block:
+    print("  ! La config del preview no tiene opciones de theming")
+    sys.exit(1)
+
+# Se quitan las del conf real (y el bloque anterior, si lo hubiera).
+lines = []
+skipping = False
+for line in real.splitlines():
+    m = re.match(r"^\s*([a-z_0-9]+)\s*:", line)
+    if m and m.group(1) in THEME_OPTS:
+        continue
+    if line.strip() == "# ── Limine theming (b3l0wz3r0-os) ──":
+        skipping = True
+        continue
+    if skipping:
+        if line.strip().startswith("#") or not line.strip():
+            continue
+        skipping = False
+    lines.append(line)
+
+# Y se inserta el bloque nuevo antes de la primera entrada.
+insert_at = len(lines)
+for index, line in enumerate(lines):
+    if line.lstrip().startswith("/"):
+        insert_at = index
+        break
+
+header = ["# ── Limine theming (b3l0wz3r0-os) ──",
+          "# Aplicado por limine-preview apply. Editá la config del preview",
+          "# y volvé a aplicar para cambiarlo."]
+new = lines[:insert_at] + header + block + lines[insert_at:]
+open(real_path, "w", encoding="utf-8").write("\n".join(new) + "\n")
+print(f"  ✓ config visual  ->  /boot/limine.conf ({len(block)} opciones)")
+PY
+    fi
+
+    echo ""
+    echo "  Para verlo antes de reiniciar:"
+    echo "      limine-preview real"
+    echo ""
+    echo "  Para que tome efecto:  sudo reboot"
+    exit 0
+    ;;
+
   wallpapers)
     if ! command -v prepare-wallpapers >/dev/null 2>&1; then
       echo "FALTA: prepare-wallpapers (corré scripts/install.sh)" >&2
@@ -154,14 +328,27 @@ done
 [[ -f "$wallpaper" ]]  || { echo "No existe el wallpaper: $wallpaper" >&2; exit 1; }
 [[ -e /dev/kvm ]]     || echo "AVISO: sin /dev/kvm, la VM va a ir por emulación (lenta)" >&2
 
-# Si es una captura sin nombre, se genera uno con timestamp
-if [[ -n "$shot" && "$shot" != /* && "$shot" != */* ]]; then
-  shot="$PWD/$shot"
-elif [[ -n "$shot" && "$shot" != /* ]]; then
-  shot="$PWD/$shot"
-fi
-if [[ "$command" == "shot" && -z "$shot" ]]; then
-  shot="$PWD/limine-preview-$(date +%Y%m%d-%H%M%S).png"
+# ── Donde va la captura ─────────────────────────────────────────────────────
+# Sin nombre de archivo: va a <repo>/previews/ con timestamp, para que las
+# capturas no se mezclen con el resto de tus ficheros.
+if [[ "$command" == "shot" ]]; then
+  if [[ -z "$shot" ]]; then
+    if [[ -n "$REPO_DIR" ]]; then
+      shot_dir="$REPO_DIR/previews"
+    else
+      shot_dir="$PWD"
+    fi
+    mkdir -p "$shot_dir"
+    shot="$shot_dir/limine-preview-$(date +%Y%m%d-%H%M%S).png"
+  elif [[ "$shot" != /* ]]; then
+    # Un nombre relativo va al directorio de previews tambien.
+    if [[ -n "$REPO_DIR" ]]; then
+      mkdir -p "$REPO_DIR/previews"
+      shot="$REPO_DIR/previews/$(basename "$shot")"
+    else
+      shot="$PWD/$shot"
+    fi
+  fi
 fi
 
 # ── Construir el árbol del ISO ──────────────────────────────────────────────

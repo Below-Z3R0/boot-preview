@@ -6,10 +6,10 @@
 # difuminada. Limine no renderiza nada: solo la muestra.
 #
 #   prepare-wallpapers.sh [ORIGEN] [-o CARPETA] [--blur 0x30] [--res WxH]
-#                         [--esrgan anime|animevideo|general]
 #
 # Genera dos ficheros:
-#   rei.png       la imagen real: más detalle (Real-ESRGAN), sin blur
+#   rei.png       la imagen real, sin blur
+#   rei-blur.png  la misma, ya difuminada
 #   rei-blur.png  la misma imagen, ya difuminada de antemano
 #
 # Con la versión difuminada, el menú se lee encima sin necesidad de panel,
@@ -26,7 +26,6 @@ src="${CONFIG_DIR}/wallpaper/rei.png"
 out_dir="${CONFIG_DIR}/wallpaper"
 blur="0x30"
 res="1920x1080"
-esrgan="anime"
 
 usage() {
   sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
@@ -37,7 +36,6 @@ while [[ $# -gt 0 ]]; do
     -o|--out)    out_dir="$2"; shift 2 ;;
     --blur)      blur="$2"; shift 2 ;;
     --res)       res="$2"; shift 2 ;;
-    --esrgan)    esrgan="$2"; shift 2 ;;
     -h|--help)   usage; exit 0 ;;
     *)           src="$1"; shift ;;
   esac
@@ -52,11 +50,11 @@ base="$(basename "${src%.*}")"
 
 echo "▸ La real (más detalle, sin blur)"
 make-wallpaper "$src" -o "$out_dir/$base.png" \
-  --esrgan "$esrgan" --res "$res"
+  --res "$res"
 
 echo "▸ La difuminada (ya viene con el blur aplicado)"
 make-wallpaper "$src" -o "$out_dir/$base-blur.png" \
-  --esrgan "$esrgan" --res "$res" --blur "$blur"
+  --res "$res" --blur "$blur"
 
 printf '\n  %s\n  %s\n\n' \
   "$out_dir/$base.png" \

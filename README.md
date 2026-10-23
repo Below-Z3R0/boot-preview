@@ -73,6 +73,22 @@ cd limine-preview
 ./scripts/install.sh
 ```
 
+### Qué hace el `install.sh`
+
+Es idempotente: podés volver a correrlo las veces que quieras.
+
+| Paso | Qué hace |
+|---|---|
+| **1. Dependencias** | verifica (e instala con sudo si falta) `qemu-desktop`, `libisoburn` (xorriso), `imagemagick`, `socat`, `edk2-ovmf`. Avisa si falta `/dev/kvm` |
+| **2. Los scripts** | `limine-preview`, `make-wallpaper` y `prepare-wallpapers` a `~/.local/bin/`. Más un shim en `/usr/local/bin/` para que `sudo limine-preview` funcione (el `secure_path` de sudo no incluye `~/.local/bin`) |
+| **3. La config** | crea `~/.config/limine-preview/limine.conf` desde `examples/`. Si ya había una, la guarda como `.bak` |
+| **4. El wallpaper** | copia el de ejemplo a `~/.config/limine-preview/wallpaper/rei.png` (no lo pisa si ya está) |
+| **5. El repo** | guarda la ruta del repo en `~/.config/limine-preview/repo` (el CLI la usa para saber dónde van las capturas) y crea `<repo>/previews/` |
+
+**No toca nada del sistema**: ni `/boot/limine.conf`, ni
+`/etc/default/limine`, ni el initramfs. Eso es del `apply`, que es un acto
+deliberado y aparte.
+
 O a mano, paso a paso:
 
 ```bash
@@ -124,12 +140,26 @@ Y **no** toca nada del sistema: ni `/boot/limine.conf`, ni
 La CLI es de **subcomandos**, no de flags:
 
 ```bash
+# VER
 limine-preview                # preview del menú (lo de siempre)
 limine-preview real           # con tu config real de /boot/limine.conf
-limine-preview shot           # captura a PNG y sale
+limine-preview wall foto.png  # preview con otro wallpaper (sin instalarlo)
+
+# CAPTURAR
+limine-preview shot           # captura a PNG (van a <repo>/previews/)
 limine-preview shot mi.png    # captura a un archivo
-limine-preview wall foto.png  # preview con otro wallpaper
-limine-preview wallpapers     # regenera las dos versiones del wallpaper
+
+# EDITAR
+limine-preview add foto.png   # pone una imagen como wallpaper del preview
+limine-preview edit           # abre la config del preview en tu editor
+
+# APLICAR AL LIMINE REAL
+limine-preview apply           # wallpaper + config visual
+limine-preview apply config    # solo la config visual
+limine-preview apply wallpaper # solo el wallpaper
+
+# OTROS
+limine-preview wallpapers     # genera las dos versiones del wallpaper
 limine-preview setup          # instala dependencias y archivos
 limine-preview help           # la ayuda
 ```
@@ -137,6 +167,30 @@ limine-preview help           # la ayuda
 En la ventana de QEMU: **flechas** para moverte, **ENTER** para bootear,
 **E** para editar la config, **F1** para el firmware, **ESC** para salir.
 **Ctrl+Q** cierra QEMU.
+
+### El flujo completo
+
+```bash
+limine-preview add ~/Pictures/foto.png   # 1. la imagen entra al preview
+limine-preview                           # 2. la mirás
+limine-preview edit                      # 3. ajustás la config (colores, margin)
+limine-preview                          # 4. la volvés a ver
+limine-preview apply                    # 5. al Limine real
+sudo reboot                             # 6. a bootear
+```
+
+`apply` es **idempotente**: aplicarlo dos veces no duplica nada en el conf.
+
+### Qué hace `apply`
+
+| | Qué toca |
+|---|---|
+| `apply wallpaper` | copia el wallpaper del preview a `/boot/splash.png` |
+| `apply config` | inyecta el bloque de theming de la config del preview en `/boot/limine.conf`, antes de la primera entrada |
+| `apply` | las dos cosas |
+
+El path del wallpaper se traduce solo: en el preview es `boot():/wallpaper.png`
+(lo que el script mete en el ISO) y en el Limine real queda `boot():/splash.png`.
 
 ### Opciones avanzadas
 
@@ -297,25 +351,22 @@ make-wallpaper.sh foto.png --res 1920x1080 --format qoi
    son lossless. Limine no tiene opción de calidad de imagen: la calidad es la
    del fichero.
 
-2. **Mejorarlo con IA** antes de usarlo. `make-wallpaper.sh --esrgan` usa
-   Real-ESRGAN, que ya está instalado (los modelos hay que bajarlos una vez):
+2. **Mejorarlo con IA antes de usarlo**, con
+   [Upscayl](https://github.com/upscayl/upscayl) (la app de escritorio, con
+   los modelos de Real-ESRGAN y ESRGAN anime). Se usa fuera de este repo:
+   escalás la imagen a 4×, la guardás, y esa entra al preview:
 
    ```bash
-   make-wallpaper.sh rei.png -o /tmp/splash.png --esrgan anime --res 1920x1080
+   # en Upscayl: escala x4 con el modelo "RealESRGAN Anime"
+   limine-preview add ~/Pictures/foto-4x.png
    ```
 
-   El truco es upscalear x4 y después **bajar** a la resolución final con
-   Lanczos: el resultado tiene más detalle perceptible que el original.
-   Medido en este wallpaper: nitidez **4.617 → 7.656 (+66%)**.
+   El truco: upscalear x4 y después **bajar** a la resolución final con
+   Lanczos. El resultado tiene más detalle perceptible que el original, sin
+   inventar textura nueva.
 
-   Los modelos (los busca en `~/.local/bin/models/`) vienen del release
-   `v0.2.5.0` de `xinntao/Real-ESRGAN`:
-   ```bash
-   mkdir -p ~/.local/bin/models
-   curl -sSL -o /tmp/esr.zip \
-     https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip
-   unzip -j /tmp/esr.zip 'models/*' -d ~/.local/bin/models/
-   ```
+   Para el blur, `make-wallpaper.sh` (o `limine-preview wallpapers`) lo aplica
+   sobre la imagen ya mejorada.
 
 ### ⚠️ El alpha de `term_background` va al revés
 
