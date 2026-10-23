@@ -18,7 +18,8 @@ examples/
 ├── limine-preview.sh      # el script (fuente de verdad)
 ├── limine-preview.conf    # la config de prueba
 ├── theming-rosepine.conf  # el bloque de theming para aplicar al sistema
-└── wallpaper/rosepine.png # el wallpaper de ejemplo (gradiente Rosé Pine)
+└── wallpaper/rei.png       # el wallpaper de ejemplo
+    rosepine.png            # un gradiente Rosé Pine alternativo
     rosepine.qoi            # el mismo, en QOI (Limine lo soporta nativamente)
 docs/
 ├── FLUJO.md               # el flujo completo, de la config a la pantalla
@@ -51,7 +52,7 @@ install -m 644 examples/limine-preview.conf ~/.config/limine-preview/limine.conf
 
 # 4. El wallpaper
 mkdir -p ~/.config/limine-preview/wallpaper
-install -m 644 examples/wallpaper/rosepine.png ~/.config/limine-preview/wallpaper/rosepine.png
+install -m 644 examples/wallpaper/rei.png ~/.config/limine-preview/wallpaper/rei.png
 ```
 
 El `install.sh` hace todo eso y además deja un **shim** en
@@ -185,7 +186,7 @@ sobrescribe). El paso a paso está en
 
 ```bash
 # 1. El wallpaper
-sudo cp examples/wallpaper/rosepine.png /boot/splash.png
+sudo cp examples/wallpaper/rei.png /boot/splash.png
 
 # 2. El bloque de theming en /etc/default/limine
 sudo nano /etc/default/limine
@@ -208,18 +209,4 @@ sudo limine-mkinitcpio
 
 ## Licencia
 
-**MIT** para el código de este repo. El wallpaper de ejemplo es original
-(un gradiente generado para el proyecto).
-
-Los componentes de terceros que usa — Limine, SilentSDDM, los wallpapers de
-DesktopHut/MoeWalls/Pexels — tienen sus propios términos. La auditoría
-completa, leída de los ficheros de licencia reales, está en
-[`CREDITS.md`](CREDITS.md).
-
-**Lo que no se redistribuye acá**: los wallpapers de terceros. El fondo por
-defecto es un gradiente propio justamente por eso. Si querés usar el del
-login screen, está instalado en tu sistema y podés apuntar a él:
-
-```bash
-limine-preview --wallpaper /usr/share/sddm/themes/silent/backgrounds/rei.png
-```
+**MIT**. Todo el código de este repo es original.

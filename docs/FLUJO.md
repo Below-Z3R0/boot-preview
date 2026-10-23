@@ -24,7 +24,7 @@ Limine aparece en la ventana de QEMU.
 
 ```bash
 config="${HOME}/.config/limine-preview/limine.conf"
-wallpaper="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview/wallpaper/rosepine.png"
+wallpaper="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview/wallpaper/rei.png"
 ```
 
 Opciones: `-c/--config`, `-w/--wallpaper`, `--real`, `--resolution`,
@@ -219,7 +219,7 @@ capturar: tiempo de sobra para que arranque la VM con KVM.
 ~/.local/bin/limine-preview                    el script
 /usr/local/bin/limine-preview                   el shim para sudo
 ~/.config/limine-preview/limine.conf           la config de prueba
-~/.config/limine-preview/wallpaper/rosepine.png  el wallpaper
+~/.config/limine-preview/wallpaper/rei.png       el wallpaper
 /tmp/limine-preview/                           el ISO y el socket del monitor
 /tmp/limine-preview-real.*.conf                la config real (temporal)
 ```

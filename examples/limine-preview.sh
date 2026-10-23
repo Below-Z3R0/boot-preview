@@ -17,12 +17,8 @@ set -euo pipefail
 LIMINE_DIR="${LIMINE_DIR:-/usr/share/limine}"
 WORK_DIR="${WORK_DIR:-/tmp/limine-preview}"
 DEFAULT_CONF="${HOME}/.config/limine-preview/limine.conf"
-# El wallpaper por defecto es el propio del repo (gradiente Rosé Pine,
-# original y sin problemas de licencia). Cualquier otro se pasa con -w.
-DEFAULT_WALLPAPER="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview/wallpaper/rosepine.png"
-# Alternativa si se quiere el fondo del login screen de SilentSDDM:
-#   /usr/share/sddm/themes/silent/backgrounds/rei.png
-# (es un asset de terceros: DesktopHut via SilentSDDM. No se redistribuye aqui.)
+# El wallpaper por defecto es el del repo. Cualquier otro se pasa con -w.
+DEFAULT_WALLPAPER="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview/wallpaper/rei.png"
 
 conf="${DEFAULT_CONF}"
 wallpaper="${DEFAULT_WALLPAPER}"
@@ -212,11 +208,18 @@ if [[ -n "$shot" ]]; then
   sleep "$timeout_secs"
 
   raw="$WORK_DIR/shot.ppm"
-  echo "screendump $raw" | socat - "UNIX-CONNECT:$monitor_sock" >/dev/null 2>&1 || true
+  rm -f "$raw"
 
-  for _ in $(seq 1 30); do
-    [[ -s "$raw" ]] && break
-    sleep 0.3
+  # El screendump necesita que la VM ya haya pintado. Se reintenta: con la
+  # config real (99 KB, cientos de entradas) el menu tarda mas en dibujarse.
+  for attempt in 1 2 3 4 5; do
+    echo "screendump $raw" | socat - "UNIX-CONNECT:$monitor_sock" >/dev/null 2>&1 || true
+    for _ in $(seq 1 20); do
+      [[ -s "$raw" ]] && break 2
+      sleep 0.3
+    done
+    echo "  reintentando la captura ($attempt/5)..."
+    sleep 2
   done
 
   if [[ -s "$raw" ]]; then

@@ -124,12 +124,12 @@ ok "$PREVIEW_DIR/limine.conf"
 step "4/4  El wallpaper"
 
 mkdir -p "$PREVIEW_DIR/wallpaper"
-install -m 644 "$REPO_DIR/examples/wallpaper/rosepine.png" "$PREVIEW_DIR/wallpaper/rosepine.png"
-ok "$PREVIEW_DIR/wallpaper/rosepine.png"
+install -m 644 "$REPO_DIR/examples/wallpaper/rei.png" "$PREVIEW_DIR/wallpaper/rei.png"
+ok "$PREVIEW_DIR/wallpaper/rei.png"
 
 if [[ $with_theming == 1 ]]; then
   step "extra  Copiar el wallpaper a /boot (para el Limine real)"
-  sudo cp "$REPO_DIR/examples/wallpaper/rosepine.png" /boot/splash.png
+  sudo cp "$REPO_DIR/examples/wallpaper/rei.png" /boot/splash.png
   ok "/boot/splash.png"
   warn "esto NO aplica el tema: falta el bloque en /etc/default/limine"
   warn "mira docs/APLICAR.md para el paso a paso completo"

@@ -57,7 +57,7 @@ El `--shot` captura el framebuffer real. Cuando te guste, aplicá.
 
 ```bash
 # El wallpaper va en /boot (la partición FAT que Limine lee)
-sudo cp examples/wallpaper/rosepine.png /boot/splash.png
+sudo cp examples/wallpaper/rei.png /boot/splash.png
 
 # Verificar
 ls -la /boot/splash.png
