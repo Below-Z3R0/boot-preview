@@ -1,0 +1,11 @@
+# Preview generado
+*.iso
+preview.png
+shot.ppm
+
+# Config local (puede tener rutas personales)
+limine-preview.local.conf
+
+# Sistema
+.DS_Store
+Thumbs.db
