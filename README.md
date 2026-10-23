@@ -26,8 +26,9 @@ docs/
 ├── THEMING.md             # las 52 opciones y qué se puede personalizar
 └── APLICAR.md             # cómo aplicar el tema al Limine real
 scripts/
-├── install.sh             # deja todo andando
-└── make-wallpaper.sh      # blur + velo + resolución, para Limine
+├── install.sh              # deja todo andando
+├── make-wallpaper.sh       # blur + velo + resolución, para Limine
+└── prepare-wallpapers.sh   # genera las dos versiones (real y difuminada)
 ```
 
 ## Las tres configs de Limine
@@ -89,8 +90,9 @@ install -m 644 examples/limine-preview.conf ~/.config/limine-preview/limine.conf
 mkdir -p ~/.config/limine-preview/wallpaper
 install -m 644 examples/wallpaper/rei.png ~/.config/limine-preview/wallpaper/rei.png
 
-# 5. (opcional) el generador de wallpapers con blur
+# 5. (opcional) los generadores de wallpapers
 install -m 755 scripts/make-wallpaper.sh ~/.local/bin/make-wallpaper
+install -m 755 scripts/prepare-wallpapers.sh ~/.local/bin/prepare-wallpapers
 ```
 
 ### Preparar un wallpaper con blur
@@ -219,7 +221,26 @@ Limine **no puede difuminar** una imagen — la dibuja tal cual. Y su
 `term_background`, que se ve mal. La solución es hacer el blur **antes**, en la
 imagen, y dejar a Limine solo con el wallpaper.
 
-### El pipeline
+### Las dos versiones
+
+Limine **no puede difuminar** una imagen — la dibuja tal cual. Y su
+`term_margin_gradient` **no es un blur**: es un velo del color de
+`term_background`, que se ve mal.
+
+La solución es que **la imagen llegue a Limine ya difuminada**. Limine no
+renderiza nada: solo la muestra. El desenfoque se aplica antes, a la imagen.
+
+```bash
+# genera las dos versiones de una
+prepare-wallpapers
+```
+
+| Fichero | Qué es |
+|---|---|
+| `rei.png` | **la real**: más detalle (Real-ESRGAN), sin blur |
+| `rei-blur.png` | **la difuminada**: la misma imagen, ya con el blur aplicado |
+
+### El pipeline de cada una
 
 ```bash
 make-wallpaper IMAGEN -o SALIDA [opciones]
@@ -229,13 +250,23 @@ make-wallpaper IMAGEN -o SALIDA [opciones]
 |---|---|
 | 1. `--esrgan anime` | upscale x4 con IA (**más detalle**: nitidez 4.617 → 7.656) |
 | 2. `--res 1920x1080` | baja a la resolución de la interfaz con Lanczos (**1:1, sin reescalado**) |
-| 3. `--blur 0x30` | **desenfoque gaussiano pre-renderizado** |
+| 3. `--blur 0x30` | **desenfoque gaussiano pre-renderizado** (solo en la versión difuminada) |
 
 ```bash
-# el wallpaper definitivo: más detalle, a la resolución exacta, y difuminado
-make-wallpaper examples/wallpaper/rei.png -o /tmp/splash.png \
+# la real
+make-wallpaper examples/wallpaper/rei.png -o /tmp/real.png \
+  --esrgan anime --res 1920x1080
+
+# la difuminada: la imagen ya viene con el blur aplicado
+make-wallpaper examples/wallpaper/rei.png -o /tmp/blur.png \
   --esrgan anime --res 1920x1080 --blur 0x30
-sudo cp /tmp/splash.png /boot/splash.png
+```
+
+Para ver cada una en el preview:
+
+```bash
+limine-preview --wallpaper ~/.config/limine-preview/wallpaper/rei.png
+limine-preview --wallpaper ~/.config/limine-preview/wallpaper/rei-blur.png
 ```
 
 Y la config de Limine, **sin margen ni degradado** (que es lo que se veía feo):
@@ -368,6 +399,7 @@ sudo limine-mkinitcpio
 | [`examples/limine-preview.conf`](examples/limine-preview.conf) | La config de prueba, comentada |
 | [`examples/theming-rosepine.conf`](examples/theming-rosepine.conf) | El bloque de theming para pegar en `/etc/default/limine` |
 | [`scripts/make-wallpaper.sh`](scripts/make-wallpaper.sh) | Blur, velo y escalado del wallpaper (Limine no puede difuminar) |
+| [`scripts/prepare-wallpapers.sh`](scripts/prepare-wallpapers.sh) | Genera las dos versiones: la real y la ya difuminada |
 
 ## Licencia
 

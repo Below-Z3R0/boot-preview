@@ -101,6 +101,10 @@ ok "$BIN_DIR/limine-preview"
 install -m 755 "$REPO_DIR/scripts/make-wallpaper.sh" "$BIN_DIR/make-wallpaper"
 ok "$BIN_DIR/make-wallpaper"
 
+# El que genera las dos versiones (real y difuminada)
+install -m 755 "$REPO_DIR/scripts/prepare-wallpapers.sh" "$BIN_DIR/prepare-wallpapers"
+ok "$BIN_DIR/prepare-wallpapers"
+
 # Un shim en /usr/local/bin para que `sudo limine-preview` funcione:
 # ~/.local/bin no esta en el secure_path de sudo.
 if [[ -w /usr/local/bin ]] || sudo -n true 2>/dev/null; then
@@ -164,6 +168,8 @@ say "Verlo con tu config real de /boot/limine.conf:"
 printf '    \033[1mlimine-preview --real\033[0m\n\n'
 say "Capturar a PNG:"
 printf '    \033[1mlimine-preview --shot ~/preview.png\033[0m\n\n'
+say "Generar las dos versiones del wallpaper (real y difuminada):"
+printf '    \033[1mprepare-wallpapers\033[0m\n\n'
 say "Los comandos con la ventana abierta: flechas, ENTER para bootear,"
 say "E para editar la config, F1 para el firmware, ESC para salir."
 say "Ctrl+Q cierra QEMU."
