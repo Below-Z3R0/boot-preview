@@ -626,7 +626,12 @@ convert_video_to_theme() {
 
   # OJO: `frames` es un array, no un contador. Con set -u, un array vacío
   # rompe `${#frames[@]}`.
-  local -a frames=("$tmp"/animation-*.png)
+  #
+  # El glob de bash ordena LEXICALMENTE: con más de 999 frames,
+  # animation-1000.png vendría antes que animation-999.png y la animación
+  # se reproduciría desordenada. Se ordena por número con `sort -V`.
+  local -a frames=()
+  mapfile -t frames < <(printf '%s\n' "$tmp"/animation-*.png | sort -V)
   [[ ${#frames[@]} -gt 0 && -f "${frames[0]}" ]] || {
     echo "No se pudo extraer ningún frame" >&2; rm -rf "$tmp"; return 1; }
   ok "${#frames[@]} frames"
