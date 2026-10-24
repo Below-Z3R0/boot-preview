@@ -22,8 +22,10 @@ STAGE="$WORK_DIR/boot-preview"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 # ── La versión ──────────────────────────────────────────────────────────────
-# Se lee del tag de git, o del commit si no hay tags.
-VERSION="$(git -C "$REPO_DIR" describe --tags --always 2>/dev/null || echo "0.0.0")"
+# Si el HEAD está en un tag, ese es el número de versión. Si hay commits
+# encima del tag, se le añade el hash corto (para distinguir builds).
+# `git describe` con --dirty marca además los cambios sin commitear.
+VERSION="$(git -C "$REPO_DIR" describe --tags --always --dirty 2>/dev/null || echo "0.0.0")"
 # El tarball se llama siempre boot-preview.tar.gz: la URL de la release es
 # fija y no hay que saber la versión para descargarlo.
 echo "▸ Versión: $VERSION"

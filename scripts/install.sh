@@ -262,7 +262,9 @@ if os.path.isfile(version_file):
     version = open(version_file).read().strip()
 if not version:
     try:
-        out = subprocess.run(["git", "-C", repo_dir, "describe", "--tags", "--always"],
+        # El tag exacto si el HEAD está en un tag; si hay commits encima,
+        # el describe con el hash corto.
+        out = subprocess.run(["git", "-C", repo_dir, "describe", "--tags", "--always", "--dirty"],
                              capture_output=True, text=True)
         version = out.stdout.strip()
     except Exception:
