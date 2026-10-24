@@ -23,7 +23,7 @@ y **no escribe ninguna**.
 | Pieza | Dónde vive | Qué hace |
 |---|---|---|
 | **tu config** | `~/.config/boot-preview/loader/limine.conf` | la config de Limine que se prueba |
-| **el script** | `~/.local/bin/boot-preview loader` | arma el ISO y lanza QEMU |
+| **el script** | `~/.local/bin/boot-preview` | arma el ISO y lanza QEMU |
 | **xorriso** | `libisoburn` | construye el ISO híbrido |
 | **QEMU** | `qemu-desktop` | emula la máquina |
 | **OVMF** | `edk2-ovmf` | el firmware UEFI (el mismo que usa tu laptop) |
@@ -36,7 +36,7 @@ y **no escribe ninguna**.
 ### 1. Parseo de argumentos
 
 ```bash
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview loader"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview/loader"
 config="$CONFIG_DIR/limine.conf"        # la config de prueba (la #1)
 wallpaper="$CONFIG_DIR/wallpaper/wallpaper.png"   # la ACTIVA
 ```
@@ -50,7 +50,7 @@ copiada a un temporal con `sudo cat`.
 ### 2. Si es `--real`: copiar la config del sistema
 
 ```bash
-real_conf="$(mktemp /tmp/boot-preview loader-real.XXXXXX.conf)"
+real_conf="$(mktemp /tmp/boot-preview-loader-real.XXXXXX.conf)"
 sudo cat /boot/limine.conf > "$real_conf"
 chmod 644 "$real_conf"
 ```
@@ -211,7 +211,7 @@ formas Material 3 por `kitty-shapes`) y el login screen (sin recortar).
 | "Could not read from CDROM" | se usó `-drive if=virtio` | `-cdrom` |
 | "failed to open kernel" | la entrada指针 a un kernel que no está en el ISO | es normal si autobootea; usá `timeout: no` |
 | El texto se ve enorme | `term_font_scale` automático = 1×1 a 1920×1080 | `term_font_scale: 1` (es el valor que usamos: `2x2` se come la pantalla) |
-| `sudo boot-preview loader` → command not found | `~/.local/bin` no está en el `secure_path` | el shim en `/usr/local/bin/boot-preview loader` |
+| `sudo boot-preview loader` → command not found | `~/.local/bin` no está en el `secure_path` | el shim en `/usr/local/bin/boot-preview` |
 | `cp: Permission denied` | se usó `sudo cp` para la config real | `sudo cat ... > archivo` |
 
 ---
@@ -233,13 +233,13 @@ capturar: tiempo de sobra para que arranque la VM con KVM.
 ## Tus ficheros, de un vistazo
 
 ```
-~/.local/bin/boot-preview loader                    el script
-/usr/local/bin/boot-preview loader                   el shim para sudo
+~/.local/bin/boot-preview                          el comando
+/usr/local/bin/boot-preview                         el shim para sudo
 ~/.config/boot-preview/loader/limine.conf           la config de prueba
 ~/.config/boot-preview/loader/wallpaper/wallpaper.png la imagen activa
 ~/.config/boot-preview/loader/wallpaper/rei-blur.png  la difuminada
 /tmp/boot-preview/loader/                           el ISO y el socket del monitor
-/tmp/boot-preview loader-real.*.conf                la config real (temporal)
+/tmp/boot-preview-loader-real.*.conf              la config real (temporal)
 ```
 
 ---

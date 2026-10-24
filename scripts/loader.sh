@@ -88,8 +88,10 @@ WALLPAPERS
   wallpapers       Genera las dos versiones (real y difuminada)
 
 OTROS
-  setup            Instala dependencias y archivos
   help             Esta ayuda
+
+INSTALACIÓN (de todo el tool)
+  boot-preview setup
 
 EJEMPLOS
   boot-preview loader
@@ -345,8 +347,9 @@ PY
     exec bash "$prep" "$@"
     ;;
   setup)
-    echo "La instalación es de todo el tool:  boot-preview setup" >&2
-    exit 1
+    # La instalacion es de todo el tool (los dos modulos), no solo del loader.
+    echo "Redirigiendo a: boot-preview setup"
+    exec boot-preview setup
     ;;
 esac
 

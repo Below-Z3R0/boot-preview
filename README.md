@@ -166,9 +166,15 @@ Medido en esta máquina (8 núcleos, QEMU con KVM):
 
 | Operación | Antes | Ahora | Cómo |
 |---|---|---|---|
-| `shot` (captura) | 15.6 s | **2.8-3.1 s** | polling del framebuffer en vez de `sleep 15` fijo |
+| `loader shot` (captura) | 15.6 s | **2.8-3.1 s** | polling del framebuffer en vez de `sleep 15` fijo |
 | `make-wallpaper` (resize + blur) | 0.9 s | **0.2-0.4 s** | vips (libvips) en vez de ImageMagick |
 | `prepare-wallpapers` (2 versiones) | ~2 s | **0.9 s** | idem |
+| `animation` (ventana) | ~30 s (VM) | **~3 s** | el renderer X11, sin initramfs ni QEMU |
+| `animation shot` | ~40 s (VM) | **10.5 s** | 3 s de arranque + 4 s de muestreo |
+
+El `animation shot` toma 10.5 s a propósito: **8 muestras cada 500 ms** para
+capturar la animación en movimiento, no un frame al azar. La ventana en sí
+aparece a los ~3 s.
 
 Detalles de los cambios:
 
@@ -189,8 +195,8 @@ Detalles de los cambios:
 ## Instalación
 
 ```bash
-git clone https://github.com/tu-usuario/boot-preview loader.git
-cd boot-preview loader
+git clone https://github.com/tu-usuario/boot-preview.git
+cd boot-preview
 ./scripts/install.sh
 ```
 
@@ -247,20 +253,29 @@ make-wallpaper.sh IMAGEN [-o SALIDA] [--blur 0x30] [--dim 0.4]
 ```
 
 El `install.sh` hace todo eso y además deja un **shim** en
-`/usr/local/bin/boot-preview loader` para que `sudo boot-preview loader` también
+`/usr/local/bin/boot-preview` para que `sudo boot-preview loader` también
 funcione (ver [la trampa del `sudo`](#las-trampas)).
 
 ### Qué queda instalado y dónde
 
 | Path | Qué es |
 |---|---|
-| `~/.local/bin/boot-preview loader` | el script (o `~/.config/boot-preview/loader/limine.conf` si preferís `$XDG_CONFIG_HOME`) |
-| `~/.config/boot-preview/loader/limine.conf` | la **config de prueba** (la #1 de la tabla de arriba) |
+| `~/.local/bin/boot-preview` | **el único comando** en el PATH |
+| `~/.local/lib/boot-preview/loader.sh` | el módulo de Limine (fuera del PATH) |
+| `~/.local/lib/boot-preview/animation.sh` | el módulo de Plymouth (fuera del PATH) |
+| `~/.local/lib/boot-preview/make-wallpaper.sh` | auxiliar (fuera del PATH) |
+| `~/.local/lib/boot-preview/prepare-wallpapers.sh` | auxiliar (fuera del PATH) |
+| `/usr/local/bin/boot-preview` | el shim para `sudo boot-preview` |
+| `~/.config/boot-preview/repo` | la ruta del repo (para las capturas en `previews/`) |
+| `~/.config/boot-preview/loader/limine.conf` | la **config de prueba** del menú |
 | `~/.config/boot-preview/loader/wallpaper/rei.png` | el wallpaper de ejemplo (nítido) |
 | `~/.config/boot-preview/loader/wallpaper/wallpaper.png` | **la imagen activa** (la que usan preview y `apply`) |
-| `~/.config/boot-preview/loader/repo` | la ruta del repo (para las capturas en `previews/`) |
-| `~/.config/boot-preview/loader/limine.conf` | la config de prueba |
-| `/usr/local/bin/boot-preview loader` | el shim para `sudo boot-preview loader` |
+| `~/.config/boot-preview/loader/wallpaper/rei-blur.png` | la difuminada (la genera `loader wallpapers`) |
+| `~/.config/boot-preview/animation/theme` | el tema del preview de Plymouth |
+
+Los módulos y los auxiliares viven **fuera del PATH** a propósito: el
+usuario ve un comando, no cinco. Se localizan por path relativo al propio
+script.
 
 Y **no** toca nada del sistema: ni `/boot/limine.conf`, ni
 `/etc/default/limine`, ni el initramfs.
@@ -481,7 +496,7 @@ default y se iba de pantalla, mostrando un error de kernel en vez del menú.
 ### 4. `sudo boot-preview loader` → "command not found"
 
 `~/.local/bin` no está en el `secure_path` de sudo. Se resuelve con un shim
-en `/usr/local/bin/boot-preview loader` que, si lo invoca root, **baja al usuario
+en `/usr/local/bin/boot-preview` que, si lo invoca root, **baja al usuario
 que lo lanzó** — así QEMU no corre como root y los archivos del preview no
 quedan propiedad de root.
 

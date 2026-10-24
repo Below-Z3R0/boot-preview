@@ -51,9 +51,12 @@ HERRAMIENTAS
               Usa el plymouthd oficial con el renderer X11: dibuja en
               una ventana GTK sobre tu escritorio. Sin VM, sin initramfs.
 
-CADA UNA
+AYUDA DE CADA UNO
   boot-preview loader --help
   boot-preview animation --help
+
+INSTALACIÓN (de todo el tool)
+  boot-preview setup
 
 EJEMPLOS
   boot-preview loader              # preview del menú de Limine
