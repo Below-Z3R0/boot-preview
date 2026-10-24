@@ -7,7 +7,7 @@
 #
 #   boot-preview loader           # preview del menú (lo de siempre)
 #   boot-preview loader real      # con tu config real de /boot/limine.conf
-#   boot-preview loader shot      # captura a PNG (en <repo>/previews/)
+#   boot-preview loader shot      # captura a PNG (en <repo>/previews/loader/)
 #   boot-preview loader add IMG   # pone una imagen como wallpaper del preview
 #   boot-preview loader edit      # abre la config del preview en un editor
 #   boot-preview loader wall IMG  # preview con otro wallpaper (sin instalarlo)
@@ -73,7 +73,7 @@ VER
 
 CAPTURAR
   shot [archivo]   Captura el menú a un PNG. Sin nombre va a
-                   <repo>/previews/ con timestamp
+                   <repo>/previews/loader/ con timestamp
 
 EDITAR
   add <imagen>     Pone una imagen como wallpaper del preview
@@ -385,12 +385,12 @@ done
 [[ -e /dev/kvm ]]     || echo "AVISO: sin /dev/kvm, la VM va a ir por emulación (lenta)" >&2
 
 # ── Donde va la captura ─────────────────────────────────────────────────────
-# Sin nombre de archivo: va a <repo>/previews/ con timestamp, para que las
-# capturas no se mezclen con el resto de tus ficheros.
+# Sin nombre de archivo: va a <repo>/previews/loader/ con timestamp. Cada
+# herramienta tiene su propia carpeta, para que las capturas no se mezclen.
 if [[ "$command" == "shot" ]]; then
   if [[ -z "$shot" ]]; then
     if [[ -n "$REPO_DIR" ]]; then
-      shot_dir="$REPO_DIR/previews"
+      shot_dir="$REPO_DIR/previews/loader"
     else
       shot_dir="$PWD"
     fi
@@ -399,8 +399,8 @@ if [[ "$command" == "shot" ]]; then
   elif [[ "$shot" != /* ]]; then
     # Un nombre relativo va al directorio de previews tambien.
     if [[ -n "$REPO_DIR" ]]; then
-      mkdir -p "$REPO_DIR/previews"
-      shot="$REPO_DIR/previews/$(basename "$shot")"
+      mkdir -p "$REPO_DIR/previews/loader"
+      shot="$REPO_DIR/previews/loader/$(basename "$shot")"
     else
       shot="$PWD/$shot"
     fi

@@ -1,4 +1,6 @@
 # Capturas del preview (se regeneran con `boot-preview loader shot`)
+# Cada herramienta tiene su carpeta: previews/loader/ y previews/animation/
+previews/**/*.png
 previews/*.png
 
 # ISO generados

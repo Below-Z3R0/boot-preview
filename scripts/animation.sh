@@ -28,6 +28,13 @@
 set -euo pipefail
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview/animation"
+
+# La ruta del repo (la guarda install.sh). Se usa para las capturas, que van
+# a <repo>/previews/animation/. Vive un nivel arriba de la config.
+REPO_DIR=""
+repo_file="$(dirname "$CONFIG_DIR")/repo"
+[[ -f "$repo_file" ]] && REPO_DIR="$(cat "$repo_file")"
+[[ -d "$REPO_DIR" ]] || REPO_DIR=""
 SYS_CONF="/etc/plymouth/plymouthd.conf"
 THEMES_DIR="/usr/share/plymouth/themes"
 X11_LOG="/tmp/plymouth-x11.log"
@@ -54,7 +61,8 @@ VER
   x11 [segundos]         Idem, con límite de tiempo (0 = hasta Ctrl+C)
 
 CAPTURAR
-  shot [archivo]         Captura el splash a un PNG + contact sheet
+  shot [archivo]         Captura el splash a un PNG + contact sheet.
+                         Sin nombre va a <repo>/previews/animation/
 
 ACCESO
   access                 Da acceso de root al servidor X (una vez por
@@ -97,6 +105,13 @@ use_real_home() {
     uh="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
     export HOME="$uh"
     CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview/animation"
+
+# La ruta del repo (la guarda install.sh). Se usa para las capturas, que van
+# a <repo>/previews/animation/. Vive un nivel arriba de la config.
+REPO_DIR=""
+repo_file="$(dirname "$CONFIG_DIR")/repo"
+[[ -f "$repo_file" ]] && REPO_DIR="$(cat "$repo_file")"
+[[ -d "$REPO_DIR" ]] || REPO_DIR=""
   fi
 }
 
@@ -419,7 +434,23 @@ cmd_shot() {
     exit 1
   fi
 
-  [[ -n "$out" ]] || out="$CONFIG_DIR/plymouth-$(date +%Y%m%d-%H%M%S).png"
+  # Sin nombre: va a <repo>/previews/animation/. Cada herramienta tiene su
+  # propia carpeta. Si no hay repo (instalado desde el bundle), va al
+  # directorio de config.
+  if [[ -z "$out" ]]; then
+    local shot_dir
+    if [[ -n "$REPO_DIR" ]]; then
+      shot_dir="$REPO_DIR/previews/animation"
+    else
+      shot_dir="$CONFIG_DIR"
+    fi
+    mkdir -p "$shot_dir"
+    out="$shot_dir/animation-$(date +%Y%m%d-%H%M%S).png"
+  elif [[ "$out" != /* && -n "$REPO_DIR" ]]; then
+    # Un nombre relativo va al directorio de previews.
+    mkdir -p "$REPO_DIR/previews/animation"
+    out="$REPO_DIR/previews/animation/$(basename "$out")"
+  fi
   mkdir -p "$(dirname "$out")"
   cp "$best_frame" "$out"
   echo "Captura: $out  ($(du -h "$out" | cut -f1))"
