@@ -11,3 +11,6 @@ limine-preview.local.conf
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Cache del preview de Plymouth (initramfs de 44 MB)
+.cache/

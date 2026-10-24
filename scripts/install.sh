@@ -80,6 +80,16 @@ ok "$BIN_DIR/make-wallpaper"
 install -m 755 "$REPO_DIR/scripts/prepare-wallpapers.sh" "$BIN_DIR/prepare-wallpapers"
 ok "$BIN_DIR/prepare-wallpapers"
 
+install -m 755 "$REPO_DIR/scripts/plymouth-preview.sh" "$BIN_DIR/plymouth-preview"
+ok "$BIN_DIR/plymouth-preview"
+
+# mkinitcpio es necesario para el preview de Plymouth.
+if command -v mkinitcpio >/dev/null 2>&1; then
+  ok "mkinitcpio presente (preview de Plymouth)"
+else
+  warn "sin mkinitcpio: el preview de Plymouth no va a funcionar"
+fi
+
 # Un shim en /usr/local/bin para que `sudo limine-preview` funcione:
 # ~/.local/bin no esta en el secure_path de sudo.
 if [[ -w /usr/local/bin ]] || sudo -n true 2>/dev/null; then

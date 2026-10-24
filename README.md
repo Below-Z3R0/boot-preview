@@ -25,10 +25,12 @@ docs/
 ├── FLUJO.md               # el flujo completo, de la config a la pantalla
 ├── THEMING.md             # las 52 opciones y qué se puede personalizar
 ├── APLICAR.md             # cómo aplicar el tema al Limine real
-└── RENDIMIENTO.md         # las mediciones y la comparativa Bun vs bash
+├── RENDIMIENTO.md         # las mediciones y la comparativa Bun vs bash
+└── PLYMOUTH.md            # el splash de arranque (que sí es Plymouth)
 scripts/
 ├── install.sh              # deja todo andando
 ├── make-wallpaper.sh       # blur + velo + resolución, para Limine
+├── plymouth-preview.sh     # preview del splash de arranque
 └── prepare-wallpapers.sh   # genera las dos versiones (real y difuminada)
 ```
 
@@ -100,6 +102,26 @@ CPU real, y las tiene que inicializar. Para un bootloader no aporta nada.
 Se sacó `-vnc :0` del modo sin GUI: abría el puerto 5900 sin que nadie lo
 usara (y chocaba si había otra VM). El screendump va por el socket del
 monitor, no por VNC.
+
+## Plymouth (el splash de arranque)
+
+Lo que se ve **después** de elegir CachyOS. No es Limine: es otro sistema.
+
+```bash
+plymouth-preview                 # ventana con el splash
+plymouth-preview shot [archivo]  # captura
+plymouth-preview themes          # los temas instalados
+```
+
+Genera un initramfs con `mkinitcpio` (hook `plymouth`) y lo arranca en QEMU
+con `-kernel`/`-initrd`, sin ISO. El splash lo dibuja Plymouth de verdad.
+
+> **Limitación**: el initramfs no tiene rootfs, así que cuando falla el
+> mount cae a la shell de emergencia y el splash se va. `shot` muestrea el
+> framebuffer y se queda con el mejor frame. Para que quede fijo hace falta
+> un rootfs real. Detalle en [docs/PLYMOUTH.md](docs/PLYMOUTH.md).
+
+**Vicinae no es esto**: es un launcher de escritorio.
 
 ## Rendimiento
 
