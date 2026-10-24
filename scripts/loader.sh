@@ -361,6 +361,7 @@ if [[ "$real" == "1" ]]; then
   # OJO: `sudo cat ... > archivo` y no `sudo cp ... archivo`. Con `sudo cp` el
   # archivo queda con el modo de /boot/limine.conf (-rwx------ root), y el
   # usuario no lo puede leer en el paso siguiente.
+  # shellcheck disable=SC2024  # el redirect NO va con sudo a proposito
   if ! sudo cat /boot/limine.conf > "$real_conf" 2>/dev/null; then
     echo "No se pudo leer /boot/limine.conf (hace falta sudo)" >&2
     rm -f "$real_conf"
