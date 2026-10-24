@@ -1,4 +1,4 @@
-# Capturas del preview (se regeneran con `limine-preview shot`)
+# Capturas del preview (se regeneran con `boot-preview loader shot`)
 previews/*.png
 
 # ISO generados
@@ -11,6 +11,3 @@ limine-preview.local.conf
 # Sistema
 .DS_Store
 Thumbs.db
-
-# Cache del preview de Plymouth (initramfs de 44 MB)
-.cache/
