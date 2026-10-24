@@ -45,7 +45,10 @@ boot-preview/
 │   ├── boot-preview.sh       # el dispatcher: `boot-preview <loader|animation>`
 │   ├── loader.sh             # el módulo de Limine (el menú)
 │   ├── animation.sh          # el módulo de Plymouth (el splash)
-│   ├── install.sh            # deja todo andando
+│   ├── install.sh            # el instalador (install [loader|animation])
+│   ├── bundle.sh             # arma el paquete descargable
+│   ├── boot-preview-hook.sh  # el hook de pacman
+│   ├── boot-preview.hook     # su definición para pacman
 │   ├── make-wallpaper.sh     # blur + velo + resolución, para Limine
 │   └── prepare-wallpapers.sh # genera las dos versiones del wallpaper
 ├── examples/
@@ -194,11 +197,62 @@ Detalles de los cambios:
 
 ## Instalación
 
+**Sin clonar el repo** (lo más simple):
+
 ```bash
-git clone https://github.com/tu-usuario/boot-preview.git
+curl -fsSL https://github.com/Below-Z3R0/boot-preview/releases/latest/download/boot-preview.tar.gz \
+  | tar xz && ./boot-preview/scripts/install.sh
+```
+
+O, desde el repo:
+
+```bash
+git clone https://github.com/Below-Z3R0/boot-preview.git
 cd boot-preview
 ./scripts/install.sh
 ```
+
+### Instalar solo una parte
+
+Cada módulo se instala por separado, con sus dependencias y su config. Lo
+que ya está instalado no se toca:
+
+```bash
+boot-preview install loader       # solo Limine (QEMU, xorriso, OVMF…)
+boot-preview install animation    # solo Plymouth (ffmpeg, xdotool, xhost)
+boot-preview install --no-deps    # sin tocar paquetes del sistema
+```
+
+### Verificar y actualizar
+
+```bash
+boot-preview verify    # chequea módulos, dependencias y config
+boot-preview update    # trae la última versión
+```
+
+`verify` compara las versiones de las dependencias con un snapshot que se
+guarda al instalar. Si algo del sistema se actualizó, te avisa:
+
+```
+  Cambios desde la instalación
+    ! plymouth       26.134.222-5 → 26.140.1-1
+```
+
+El preview usa el software del sistema, así que ya está usando la versión
+nueva: el aviso es informativo.
+
+### El hook de pacman
+
+Para que el sistema te avise **solo** cuando actualizás Plymouth o
+Limine:
+
+```bash
+boot-preview hooks install     # instala el hook
+boot-preview hooks status      # qué disparadores tiene
+boot-preview hooks uninstall   # lo saca
+```
+
+Solo informa, no modifica nada.
 
 ### Qué hace el `install.sh`
 
@@ -265,6 +319,8 @@ funcione (ver [la trampa del `sudo`](#las-trampas)).
 | `~/.local/lib/boot-preview/animation.sh` | el módulo de Plymouth (fuera del PATH) |
 | `~/.local/lib/boot-preview/make-wallpaper.sh` | auxiliar (fuera del PATH) |
 | `~/.local/lib/boot-preview/prepare-wallpapers.sh` | auxiliar (fuera del PATH) |
+| `/usr/local/lib/boot-preview/boot-preview-hook.sh` | el hook de pacman (si lo instalaste) |
+| `/etc/pacman.d/hooks/boot-preview.hook` | la definición del hook |
 | `/usr/local/bin/boot-preview` | el shim para `sudo boot-preview` |
 | `~/.config/boot-preview/repo` | la ruta del repo (para las capturas en `previews/`) |
 | `~/.config/boot-preview/loader/limine.conf` | la **config de prueba** del menú |
@@ -348,10 +404,13 @@ boot-preview animation steam-convert    # convierte el video en tema
 boot-preview animation steam-apply      # convierte y lo aplica
 ```
 
-### Instalación
+### Instalación y mantenimiento
 
 ```bash
-boot-preview setup
+boot-preview install [loader|animation]  # instalar (o solo una parte)
+boot-preview verify                      # verificar la instalación
+boot-preview update                      # traer la última versión
+boot-preview hooks [install|uninstall]   # el hook de pacman
 ```
 
 ### El flujo completo
@@ -700,6 +759,7 @@ No hace falta `limine-mkinitcpio`.
 | [`scripts/animation.sh`](scripts/animation.sh) | El módulo de Plymouth |
 | [`scripts/make-wallpaper.sh`](scripts/make-wallpaper.sh) | Blur, velo y escalado del wallpaper (Limine no puede difuminar) |
 | [`scripts/prepare-wallpapers.sh`](scripts/prepare-wallpapers.sh) | Genera las dos versiones: la real y la ya difuminada |
+| [`scripts/bundle.sh`](scripts/bundle.sh) | Arma el paquete descargable (`dist/boot-preview.tar.gz`) |
 
 ## Licencia
 
