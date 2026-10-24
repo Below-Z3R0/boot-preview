@@ -108,9 +108,12 @@ monitor, no por VNC.
 Lo que se ve **después** de elegir CachyOS. No es Limine: es otro sistema.
 
 ```bash
-plymouth-preview                 # ventana con el splash
-plymouth-preview shot [archivo]  # captura
-plymouth-preview themes          # los temas instalados
+plymouth-preview                  # ventana con el splash
+plymouth-preview shot [archivo]   # captura
+plymouth-preview themes           # los temas instalados
+plymouth-preview sources          # los videos de Steam (cuál está activo)
+plymouth-preview from-steam       # convierte el video de Steam en tema
+plymouth-preview use <tema>       # aplica un tema al sistema (-R)
 ```
 
 Genera un initramfs con `mkinitcpio` (hook `plymouth`) y lo arranca en QEMU

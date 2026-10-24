@@ -5,11 +5,15 @@
 # El splash lo dibuja Plymouth de verdad: mismo tema, mismos frames, mismo
 # renderer (DRM).
 #
-#   plymouth-preview              # ventana con el splash
-#   plymouth-preview shot [f.png] # captura el splash y sale
-#   plymouth-preview themes       # lista los temas instalados
-#   plymouth-preview theme <nom>  # cambia el tema del preview (no del sistema)
-#   plymouth-preview build        # solo regenera el initramfs (cache)
+#   plymouth-preview                    # ventana con el splash
+#   plymouth-preview shot [f.png]       # captura el splash y sale
+#   plymouth-preview themes             # lista los temas instalados
+#   plymouth-preview theme <nom>        # cambia el tema DEL PREVIEW
+#   plymouth-preview use <nom>          # aplica un tema AL SISTEMA (-R)
+#   plymouth-preview sources            # videos de animación que tiene Steam
+#   plymouth-preview from-steam         # convierte el video de Steam en tema
+#   plymouth-preview from-steam --apply # ...y lo aplica al sistema
+#   plymouth-preview build              # solo regenera el initramfs (cache)
 #   plymouth-preview help
 #
 # LIMITACIÓN CONOCIDA
@@ -73,9 +77,22 @@ build_initramfs() {
 
   kpath="$(kernel_path)"
   kver="$(basename "$(dirname "$kpath")")"
-  out="$CACHE_DIR/$theme-$kver.img"
+
+  # El nombre lleva un hash de los HOOKS: si se cambia el orden o se agrega
+  # uno, el initramfs viejo queda obsoleto y hay que regenerarlo (si no, se
+  # reusa uno con los hooks viejos y el preview muestra el tema equivocado).
+  local hooks_line="base udev modconf block preview plymouth filesystems"
+  local tag
+  tag="$(printf '%s' "$hooks_line" | md5sum | cut -c1-8)"
+  out="$CACHE_DIR/$theme-$kver-$tag.img"
 
   mkdir -p "$CACHE_DIR"
+
+  # El nombre del tema va al initramfs (/preview-theme). El hook `preview`
+  # lo lee en runtime y escribe /etc/plymouth/plymouthd.conf ANTES de que el
+  # hook `plymouth` lance el daemon. Escribir el conf directo con add_file no
+  # sirve: el hook `plymouth` agrega el suyo y gana.
+  printf '%s\n' "$theme" > /tmp/plymouth-preview-theme
 
   # Cache: si el initramfs es más nuevo que el theme, no se regenera.
   if [[ -f "$out" && "$out" -nt "/usr/share/plymouth/themes/$theme" ]]; then
@@ -92,7 +109,7 @@ build_initramfs() {
 MODULES=(bochs)
 BINARIES=()
 FILES=()
-HOOKS=(base udev plymouth modconf block filesystems)
+HOOKS=($hooks_line)
 COMPRESSION="zstd"
 EOF
 
@@ -148,6 +165,8 @@ cmd_shot() {
   pid="$(start_qemu "$initrd" 0 "$mon")"
 
   local best_size=0 best_frame=""
+  # Frames con contenido, ordenados por peso (los negros pesan ~1.5 KB).
+  local -a candidatos=()
   local i=0
   # 60 muestras * 0.4s = 24s de ventana
   while [[ $i -lt 60 ]]; do
@@ -165,6 +184,9 @@ cmd_shot() {
     # Un frame con contenido pesa mucho más que uno negro.
     local size
     size="$(stat -c %s "$png" 2>/dev/null || echo 0)"
+    if [[ "$size" -gt 2000 ]]; then
+      candidatos+=("$size:$png")
+    fi
     if [[ "$size" -gt "$best_size" ]]; then
       best_size="$size"
       best_frame="$png"
@@ -185,6 +207,19 @@ cmd_shot() {
   fi
   cp "$best_frame" "$out"
   echo "Captura: $out  ($(du -h "$out" | cut -f1))"
+
+  # Contact sheet: los 4 frames con contenido más distintos entre sí.
+  # `shot` se queda con el frame más pesado (suele ser el final de la
+  # animación); el sheet muestra cómo evoluciona.
+  if [[ ${#candidatos[@]} -ge 4 ]] && command -v magick >/dev/null 2>&1; then
+    local sheet="${out%.png}-sheet.png"
+    local -a top=()
+    while IFS= read -r linea; do
+      top+=("${linea#*:}")
+    done < <(printf '%s\n' "${candidatos[@]}" | sort -t: -k1 -rn | head -4)
+    magick "${top[@]}" -resize 640x360 +append -append "$sheet" 2>/dev/null && \
+      echo "Sheet:   $sheet  ($(du -h "$sheet" | cut -f1))"
+  fi
 }
 
 # ── Ver en ventana ────────────────────────────────────────────────────────
@@ -252,11 +287,195 @@ need_root() {
   fi
 }
 
+# ── Steam ─────────────────────────────────────────────────────────────────
+# Steam Big Picture usa `bigpicture_startup.webm` (empaquetado, 1920x1200,
+# 60 fps, 6 s). En Steam Deck hay además deck_startup.webm y oled_startup.webm.
+# No hay forma de "elegir" el video desde Steam en desktop: es el que trae.
+steam_dirs() {
+  local d real vistos=""
+  for d in \
+    "$HOME/.local/share/Steam/steamui/movies" \
+    "$HOME/.steam/steam/steamui/movies" \
+    "$HOME/.steam/steam/legacycompat"; do
+    [[ -d "$d" ]] || continue
+    # ~/.steam/steam y ~/.local/share/Steam son el mismo sitio (symlink):
+    # se deduplica por ruta real, no por la ruta escrita.
+    # (Sin arrays asociativos: la funcion corre en un subshell con
+    # process substitution y `local -A` no sobrevive.)
+    real="$(readlink -f "$d" 2>/dev/null || echo "$d")"
+    case "$vistos" in *"|$real|"*) continue ;; esac
+    vistos="$vistos|$real|"
+    printf '%s\n' "$d"
+  done
+}
+
+# El video que Steam usa para la animación de entrada a Big Picture.
+steam_video() {
+  local dir video
+  dir="$(steam_dirs | head -1)"
+  [[ -n "$dir" ]] || { echo "No encuentro el directorio de movies de Steam" >&2; return 1; }
+
+  # En Steam Deck (Jupiter = LCD, Galileo = OLED) el startup es otro.
+  local modelo=""
+  [[ -r /sys/devices/virtual/dmi/id/product_name ]] && \
+    modelo="$(cat /sys/devices/virtual/dmi/id/product_name)"
+
+  case "$modelo" in
+    *Jupiter*) video="deck_startup.webm" ;;
+    *Galileo*) video="oled_startup.webm" ;;
+    *)         video="bigpicture_startup.webm" ;;
+  esac
+
+  if [[ -f "$dir/$video" ]]; then
+    printf '%s\n' "$dir/$video"
+    return 0
+  fi
+  # Fallback: el primero que haya.
+  for video in bigpicture_startup.webm deck_startup.webm oled_startup.webm; do
+    [[ -f "$dir/$video" ]] && { printf '%s\n' "$dir/$video"; return 0; }
+  done
+  echo "No encuentro ningún video de startup de Steam" >&2
+  return 1
+}
+
+cmd_sources() {
+  local dir actual
+  actual="$(steam_video 2>/dev/null || true)"
+  step "Videos de animación que tiene Steam"
+  while IFS= read -r dir; do
+    [[ -d "$dir" ]] || continue
+    say "$dir"
+    for f in "$dir"/*startup*.webm "$dir"/*suspend*.webm; do
+      [[ -f "$f" ]] || continue
+      local info
+      info="$(ffprobe -v error -select_streams v:0 \
+        -show_entries stream=width,height,r_frame_rate -show_entries format=duration \
+        -of csv=p=0 "$f" 2>/dev/null | tr '\n' ' ')"
+      if [[ "$f" == "$actual" ]]; then
+        printf '  \033[38;2;125;207;216m* %s\033[0m  (%s) ← el activo\n' "$(basename "$f")" "$info"
+      else
+        printf '    %s  (%s)\n' "$(basename "$f")" "$info"
+      fi
+    done
+  done < <(steam_dirs)
+
+  [[ -n "$actual" ]] && { echo; say "Activo: $actual"; }
+}
+
+# Convierte un video en un tema de Plymouth (two-step + los frames).
+convert_video_to_theme() {
+  local video="$1" name="$2" fps="$3" res="$4" dest
+  dest="/usr/share/plymouth/themes/$name"
+
+  [[ -f "$video" ]] || { echo "No existe el video: $video" >&2; return 1; }
+  command -v ffmpeg >/dev/null 2>&1 || { echo "FALTA: ffmpeg" >&2; return 1; }
+
+  local tmp
+  tmp="$(mktemp -d /tmp/plymouth-theme.XXXXXX)"
+
+  step "Extrayendo frames ($(basename "$video"), ${fps}fps, $res)"
+  # crop centrado al aspecto pedido, escalado Lanczos. Se descarta el audio.
+  local w h
+  w="${res%x*}"; h="${res#*x}"
+  ffmpeg -loglevel error -y -i "$video" \
+    -vf "fps=$fps,crop=iw:min(ih\\,iw*$h/$w):0:(ih-min(ih\\,iw*$h/$w))/2,scale=$w:$h:flags=lanczos" \
+    -start_number 0 "$tmp/animation-%03d.png" 2>/dev/null
+
+  local frames
+  frames="$(ls "$tmp"/animation-*.png 2>/dev/null | wc -l)"
+  [[ "$frames" -gt 0 ]] || { echo "No se pudo extraer ningún frame" >&2; rm -rf "$tmp"; return 1; }
+  ok "$frames frames"
+
+  # Throbber: se reusan los del tema base si existen (el spinner de progreso).
+  local base="/usr/share/plymouth/themes/cachyos-bootanimation"
+  if [[ -d "$base" ]]; then
+    cp "$base"/throbber-*.png "$tmp"/ 2>/dev/null || true
+  fi
+
+  cat > "$tmp/$name.plymouth" <<EOF
+[Plymouth Theme]
+Name=$name
+Description=Generado desde $(basename "$video")
+ModuleName=two-step
+
+[two-step]
+ImageDir=$dest
+HorizontalAlignment=.5
+VerticalAlignment=.5
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x000000
+BackgroundEndColor=0x000000
+ProgressBarBackgroundColor=0x1a1a1a
+ProgressBarForegroundColor=0x6ba8d9
+MessageBelowAnimation=false
+EOF
+
+  step "Instalando en $dest"
+  sudo rm -rf "$dest"
+  sudo mkdir -p "$dest"
+  sudo cp "$tmp"/animation-*.png "$dest"/
+  sudo cp "$tmp"/throbber-*.png "$dest"/ 2>/dev/null || true
+  sudo cp "$tmp/$name.plymouth" "$dest"/
+  rm -rf "$tmp"
+
+  ok "Tema '$name' instalado ($(du -sh "$dest" 2>/dev/null | cut -f1))"
+  printf '%s\n' "$name"
+}
+
+cmd_from_steam() {
+  local video="" name="" fps=30 res="1920x1080" apply=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --video)  video="$2"; shift 2 ;;
+      --name)   name="$2"; shift 2 ;;
+      --fps)    fps="$2"; shift 2 ;;
+      --res)    res="$2"; shift 2 ;;
+      --apply)  apply=1; shift ;;
+      *) echo "Opción desconocida: $1" >&2; exit 1 ;;
+    esac
+  done
+
+  [[ -n "$video" ]] || video="$(steam_video)"
+  [[ -f "$video" ]] || { echo "No encuentro el video" >&2; exit 1; }
+
+  # Nombre por defecto: steam-<nombre del video sin extensión>
+  if [[ -z "$name" ]]; then
+    name="steam-$(basename "$video" .webm | tr '_' '-')"
+  fi
+
+  local created
+  created="$(convert_video_to_theme "$video" "$name" "$fps" "$res" | tail -1)"
+
+  if [[ "$apply" == "1" ]]; then
+    cmd_use "$created"
+  else
+    echo
+    say "Para verlo en el preview:  plymouth-preview theme $created"
+    say "Para aplicarlo al sistema: plymouth-preview use $created"
+  fi
+}
+
+# Aplica un tema al SISTEMA (no al preview).
+cmd_use() {
+  local name="${1:-}"
+  [[ -n "$name" ]] || { echo "Falta el nombre del tema" >&2; exit 1; }
+  [[ -d "/usr/share/plymouth/themes/$name" ]] || {
+    echo "No existe el tema: $name" >&2; cmd_themes; exit 1; }
+
+  step "Aplicando '$name' al sistema"
+  warn "Esto regenera el initramfs real (~30s) y cambia el splash del próximo boot."
+  sudo plymouth-set-default-theme -R "$name"
+  ok "Tema activo: $(system_theme)"
+  say "El próximo arranque va a mostrar '$name'."
+  say "Para volver: plymouth-preview use $(echo "$name" | sed 's/^steam-.*/cachyos-bootanimation/')"
+}
+
 # ── Dispatch ──────────────────────────────────────────────────────────────
 # Los comandos que construyen el initramfs necesitan root: se re-ejecuta
 # antes de tocar los argumentos.
 case "${1:-view}" in
-  view|shot|build|"") need_root "$@" ;;
+  view|shot|build|from-steam|use|"") need_root "$@" ;;
 esac
 use_real_home
 
@@ -268,6 +487,9 @@ case "$cmd" in
   shot)      cmd_shot "${1:-}" ;;
   themes)    cmd_themes ;;
   theme)     cmd_theme "${1:-}" ;;
+  use)       cmd_use "${1:-}" ;;
+  sources)   cmd_sources ;;
+  from-steam) use_root "$@"; cmd_from_steam "$@" ;;
   build)
      step "Construyendo"
      build_initramfs
