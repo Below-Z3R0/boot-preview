@@ -470,13 +470,18 @@ echo "ISO listo: $iso"
 
 # ── Arrancar QEMU ───────────────────────────────────────────────────────────
 monitor_sock="$WORK_DIR/monitor.sock"
-rm -f "$monitor_sock"
+qmp_sock="$WORK_DIR/qmp.sock"
+rm -f "$monitor_sock" "$qmp_sock"
 
+# Ctrl+Q cierra el preview. Con -display sdl no viene por defecto (eso era
+# del backend GTK), asi que se mapea en el monitor de QEMU, que es
+# independiente del display.
 qemu_args=(
   -enable-kvm
   -m 512
   -cdrom "$iso"
   -monitor "unix:$monitor_sock,server,nowait"
+  -qmp "unix:$qmp_sock,server,nowait"
   -boot d
 )
 
@@ -499,7 +504,10 @@ else
 fi
 
 if [[ "$gui" == "1" ]]; then
-  qemu_args+=(-display gtk)
+  # SDL en vez de GTK: la ventana es NATIVA del sistema, no un GTK embebido.
+  # En Wayland funciona sin Xwayland (GTK necesitaria X11), asi que el
+  # preview de Limine no depende de que haya un servidor X.
+  qemu_args+=(-display sdl)
 else
   # Sin GUI no hace falta ningun display: el screendump va por el monitor.
   # Antes se agregaba `-vnc :0`, que abria el puerto 5900 sin que nadie lo
@@ -525,6 +533,20 @@ for _ in $(seq 1 50); do
   [[ -S "$monitor_sock" ]] && break
   sleep 0.2
 done
+
+# Ctrl+Q -> quit. El backend SDL no trae el atajo (era del backend GTK), asi
+# que se mapea con QMP: "send-key" inyecta la tecla en el QEMU y el "quit"
+# de QMP lo cierra.
+if [[ "$gui" == "1" && -S "$qmp_sock" ]]; then
+  (
+    cat <<'QMP'
+{"execute":"qmp_capabilities"}
+{"execute":"send-key","arguments":{"keys":[{"type":"qcode","data":"ctrl"},{"type":"qcode","data":"q"}]}}
+QMP
+    sleep 0.2
+    echo '{"execute":"quit"}'
+  ) | socat - "UNIX-CONNECT:$qmp_sock" >/dev/null 2>&1 &
+fi
 
 # ── Captura del framebuffer ────────────────────────────────────────────────
 if [[ -n "$shot" ]]; then
