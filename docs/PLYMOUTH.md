@@ -45,12 +45,31 @@ ver un cambio hay que reiniciarlo.
 ### `plymouth-preview`
 
 ```bash
-plymouth-preview                 # ventana con el splash
-plymouth-preview shot [archivo]  # captura el splash
-plymouth-preview themes          # lista los temas
-plymouth-preview theme <nombre>  # cambia el tema DEL PREVIEW
-plymouth-preview build           # regenera el initramfs (cache)
+plymouth-preview                     # ventana con el splash
+plymouth-preview shot [archivo]      # captura el splash
+plymouth-preview sources             # temas de Plymouth instalados
+plymouth-preview preview <tema>      # tema SOLO del preview
+plymouth-preview use <tema>          # tema del SISTEMA (-R)
+plymouth-preview steam-source        # videos de Steam
+plymouth-preview steam-convert <vid> # convierte un video en tema
+plymouth-preview steam-apply <vid>   # convierte y aplica al sistema
+plymouth-preview build               # regenera el initramfs
 ```
+
+### Qué hay por debajo
+
+**El Plymouth oficial dentro de una VM.** No es un reproductor de imágenes:
+
+| Pieza | Qué es |
+|---|---|
+| `plymouthd` | el binario del sistema (`/usr/sbin/plymouthd`) |
+| Plugins | los mismos de `/usr/lib/plymouth/` (`two-step`, `script`, ...) |
+| Renderer | `renderers/drm.so`, dibujando sobre el DRM de la VM |
+| VM | QEMU + KVM, `-kernel` + `-initrd` (sin ISO) |
+| Initramfs | generado con `mkinitcpio`, el mismo que usa la máquina |
+
+O sea: es **el mismo software y el mismo render** que ves al arrancar; la VM
+solo reemplaza al hardware.
 
 ### Cómo funciona
 
@@ -105,7 +124,7 @@ un tema `two-step` con ellos.
 ### Cuál es el video activo
 
 ```bash
-plymouth-preview sources
+plymouth-preview steam-source
 ```
 
 Muestra todos los videos de startup que tiene Steam y marca el activo:
@@ -133,11 +152,14 @@ sistema es de **noviembre 2022** (el empaquetado original).
 ### Convertirlo en tema
 
 ```bash
-plymouth-preview from-steam                 # crea el tema
-plymouth-preview from-steam --apply         # crea el tema Y lo aplica al sistema
-plymouth-preview from-steam --fps 30 --res 1920x1080 --name mi-tema
-plymouth-preview from-steam --video ~/otro.webm
+plymouth-preview steam-convert                      # el video activo
+plymouth-preview steam-apply                        # el video activo + lo aplica
+plymouth-preview steam-convert ~/otro.webm          # un video puntual
+plymouth-preview steam-apply deck_startup.webm      # nombre relativo a movies/
 ```
+
+Ajustes por variable de entorno: `STEAM_FPS` (default 30) y `STEAM_RES`
+(default `1920x1080`).
 
 Qué hace:
 
