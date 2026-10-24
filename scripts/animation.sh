@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# plymouth-preview — ver y convertir splashes de Plymouth sin reiniciar.
+# boot-preview animation — ver y convertir splashes de Plymouth sin reiniciar.
 #
 # Por debajo usa el Plymouth OFICIAL del sistema (plymouthd + sus plugins)
 # con el renderer X11: dibuja en una ventana GTK sobre tu escritorio. No es
 # un reproductor de imágenes: es el mismo binario, los mismos plugins y el
 # mismo tema que usa la máquina al arrancar.
 #
-#   plymouth-preview                     # ventana con el splash
-#   plymouth-preview x11 [segundos]      # idem, con límite de tiempo
-#   plymouth-preview shot [archivo.png]  # captura el splash y sale
-#   plymouth-preview access              # da acceso de root al servidor X
-#   plymouth-preview sources             # temas de Plymouth instalados
-#   plymouth-preview preview <tema>      # tema SOLO del preview
-#   plymouth-preview use <tema>          # tema del SISTEMA (-R, regenera initramfs)
-#   plymouth-preview steam-source        # videos de Steam (cuál está activo)
-#   plymouth-preview steam-convert <vid> # convierte un video en tema
-#   plymouth-preview steam-apply <vid>   # convierte y lo aplica al sistema
-#   plymouth-preview help
+#   boot-preview animation                     # ventana con el splash
+#   boot-preview animation x11 [segundos]      # idem, con límite de tiempo
+#   boot-preview animation shot [archivo.png]  # captura el splash y sale
+#   boot-preview animation access              # da acceso de root al servidor X
+#   boot-preview animation sources             # temas de Plymouth instalados
+#   boot-preview animation preview <tema>      # tema SOLO del preview
+#   boot-preview animation use <tema>          # tema del SISTEMA (-R, regenera initramfs)
+#   boot-preview animation steam-source        # videos de Steam (cuál está activo)
+#   boot-preview animation steam-convert <vid> # convierte un video en tema
+#   boot-preview animation steam-apply <vid>   # convierte y lo aplica al sistema
+#   boot-preview animation help
 #
 # REQUISITO
 # ---------
@@ -24,10 +24,10 @@
 # da acceso. Sin esto el splash no aparece (ni error). Se resuelve una vez
 # por sesión con:
 #
-#   plymouth-preview access
+#   boot-preview animation access
 set -euo pipefail
 
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/plymouth-preview"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview/animation"
 SYS_CONF="/etc/plymouth/plymouthd.conf"
 THEMES_DIR="/usr/share/plymouth/themes"
 X11_LOG="/tmp/plymouth-x11.log"
@@ -50,7 +50,7 @@ use_real_home() {
     local uh
     uh="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
     export HOME="$uh"
-    CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/plymouth-preview"
+    CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview/animation"
   fi
 }
 
@@ -147,7 +147,7 @@ cmd_preview() {
   printf '%s\n' "$name" > "$CONFIG_DIR/theme"
   ok "El preview va a usar '$name'"
   say "El sistema sigue con '$(system_theme)'."
-  say "Para verlo: plymouth-preview"
+  say "Para verlo: boot-preview animation"
 }
 
 # ── Tema del sistema ──────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ cmd_use() {
   warn "Esto regenera el initramfs real (~30 s) y cambia el splash del próximo boot."
   sudo plymouth-set-default-theme -R "$name"
   ok "Tema activo: $(system_theme)"
-  say "Para volver al de CachyOS: plymouth-preview use cachyos-bootanimation"
+  say "Para volver al de CachyOS: boot-preview animation use cachyos-bootanimation"
 }
 
 # ── Arrancar Plymouth en X11 ───────────────────────────────────────────────
@@ -174,7 +174,7 @@ cmd_use() {
 start_plymouth_x11() {
   local theme="$1"
 
-  PP_ETC_DIR="$(mktemp -d /tmp/plymouth-preview-etc.XXXXXX)"
+  PP_ETC_DIR="$(mktemp -d /tmp/boot-preview-animation-etc.XXXXXX)"
   PP_RUN_THEME="/run/plymouth/themes/$theme"
 
   # El tema va a /run/plymouth/themes, que Plymouth mira ANTES que /usr/share.
@@ -250,7 +250,7 @@ cmd_x11() {
     warn "root no puede abrir una ventana en $DISPLAY (control de acceso de X)."
     echo
     say "Solución (una vez por sesión):"
-    say "  plymouth-preview access"
+    say "  boot-preview animation access"
     echo
     say "Eso le da a root acceso al servidor X. Plymouth dibuja en una"
     say "ventana GTK sobre tu escritorio, con el tema real."
@@ -319,7 +319,7 @@ cmd_shot() {
   }
   if ! x11_root_access; then
     warn "root no puede abrir una ventana en $DISPLAY."
-    say "Solución: plymouth-preview access"
+    say "Solución: boot-preview animation access"
     exit 1
   fi
 
@@ -713,7 +713,7 @@ cmd_steam_convert() {
   fi
   [[ -f "$video" ]] || {
     echo "No existe el video: $video" >&2
-    echo "Ver los disponibles: plymouth-preview steam-source" >&2
+    echo "Ver los disponibles: boot-preview animation steam-source" >&2
     exit 1
   }
 
@@ -750,8 +750,8 @@ cmd_steam_convert() {
     cmd_use "$created"
   else
     echo
-    say "Para verlo:     plymouth-preview preview $created"
-    say "Para aplicarlo: plymouth-preview use $created"
+    say "Para verlo:     boot-preview animation preview $created"
+    say "Para aplicarlo: boot-preview animation use $created"
   fi
 }
 

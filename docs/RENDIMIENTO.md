@@ -15,7 +15,7 @@ Medido en esta máquina (Intel UHD 12 núcleos, QEMU con KVM habilitado).
 
 | Operación | Antes | Ahora | Ganancia |
 |---|---|---|---|
-| `limine-preview shot` | 15.6 s | **2.8 - 3.1 s** | **5x** |
+| `boot-preview loader shot` | 15.6 s | **2.8 - 3.1 s** | **5x** |
 | `make-wallpaper --blur 0x30 --res 1920x1080` | 0.90 s | **0.32 s** | **2.8x** |
 | `make-wallpaper` sin blur (sharpen) | 0.85 s | **0.36 s** | 2.4x |
 | `prepare-wallpapers` (las 2 versiones) | ~1.9 s | **0.90 s** | 2.1x |
@@ -83,7 +83,7 @@ cambia.
 | `bun -e 'process.exit(0)'` | **117 ms** |
 
 **Bun tarda ~53x más en arrancar que bash.** Cada invocación de
-`limine-preview` o `make-wallpaper` pagaría ese peaje antes de hacer nada.
+`boot-preview loader` o `make-wallpaper` pagaría ese peaje antes de hacer nada.
 
 ### El mismo script, en los dos lenguajes
 
@@ -127,7 +127,7 @@ restante a un runtime que arranca 53x más lento.
 La regla práctica: **si el script es un pegamento entre binarios, bash. Si
 tiene lógica propia (parseo, validación, red), TypeScript.**
 
-`limine-preview` es 100% pegamento. Por eso se queda en bash.
+`boot-preview loader` es 100% pegamento. Por eso se queda en bash.
 
 ### Si algún día se migrara
 
@@ -158,7 +158,7 @@ time make-wallpaper IMAGEN -o /tmp/x.png --res 1920x1080 --blur 0x30
 time vips gaussblur IMAGEN /tmp/x.v 30
 
 # La captura
-time limine-preview shot /tmp/x.png --timeout 25
+time boot-preview loader shot /tmp/x.png --timeout 25
 
 # Equivalencia de las dos salidas
 magick compare -metric RMSE salida-magick.png salida-vips.png null:

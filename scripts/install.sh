@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
-# install.sh — deja limine-preview funcionando.
+# install.sh — deja boot-preview funcionando.
 #
 #   ./scripts/install.sh
 #
 # Que hace, en orden:
 #   1. Verifica/instala las dependencias de Limine (qemu, xorriso, OVMF,
 #      imagemagick) y de Plymouth (ffmpeg, xdotool, xhost)
-#   2. Instala los scripts en ~/.local/bin/
-#   3. Crea ~/.config/limine-preview/ con la config de prueba y el wallpaper
+#   2. Instala los scripts en ~/.local/bin/ y ~/.local/lib/boot-preview/
+#   3. Crea ~/.config/boot-preview/ con la config de prueba y el wallpaper
 #   4. Guarda la ruta del repo (para que el CLI sepa dónde está)
 #   5. Crea <repo>/previews/ para las capturas
 #
 # NO toca nada del sistema: ni /boot/limine.conf, ni /etc/default/limine,
-# ni el initramfs. Para aplicar el tema de verdad: limine-preview apply
+# ni el initramfs. Para aplicar el tema de verdad: boot-preview loader apply
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREFIX="${XDG_CONFIG_HOME:-$HOME/.config}"
 BIN_DIR="$HOME/.local/bin"
-PREVIEW_DIR="$PREFIX/limine-preview"
+LIB_DIR="$HOME/.local/lib/boot-preview"
+CONFIG_DIR="$PREFIX/boot-preview"
+LOADER_DIR="$CONFIG_DIR/loader"
 
 say() { printf '  %s\n' "$*"; }
 step() { printf '\n\033[1;38;2;235;194;186m▸\033[0m \033[1m%s\033[0m\n' "$*"; }
@@ -68,22 +70,6 @@ else
   warn "sin /dev/kvm: la VM va a ir por emulación (lenta)"
 fi
 
-# ── 2. Los scripts ─────────────────────────────────────────────────────────
-step "2/5  Los scripts"
-
-mkdir -p "$BIN_DIR"
-install -m 755 "$REPO_DIR/examples/limine-preview.sh" "$BIN_DIR/limine-preview"
-ok "$BIN_DIR/limine-preview"
-
-install -m 755 "$REPO_DIR/scripts/make-wallpaper.sh" "$BIN_DIR/make-wallpaper"
-ok "$BIN_DIR/make-wallpaper"
-
-install -m 755 "$REPO_DIR/scripts/prepare-wallpapers.sh" "$BIN_DIR/prepare-wallpapers"
-ok "$BIN_DIR/prepare-wallpapers"
-
-install -m 755 "$REPO_DIR/scripts/plymouth-preview.sh" "$BIN_DIR/plymouth-preview"
-ok "$BIN_DIR/plymouth-preview"
-
 # ── Dependencias de Plymouth ───────────────────────────────────────────────
 # ffmpeg: convierte los videos de Steam en temas (extrae los frames).
 # xdotool: encuentra la ventana de Plymouth para capturarla.
@@ -109,64 +95,84 @@ else
   warn "sin renderers/x11.so: el preview de Plymouth no va a funcionar"
 fi
 
-# Un shim en /usr/local/bin para que `sudo limine-preview` funcione:
+# ── 2. Los scripts ─────────────────────────────────────────────────────────
+step "2/5  Los scripts"
+
+mkdir -p "$BIN_DIR" "$LIB_DIR"
+
+# El dispatcher: un solo comando, `boot-preview`.
+install -m 755 "$REPO_DIR/scripts/boot-preview.sh" "$BIN_DIR/boot-preview"
+ok "$BIN_DIR/boot-preview"
+
+# Los dos modulos van a ~/.local/lib/boot-preview/, fuera del PATH: el
+# usuario solo deberia ver `boot-preview`.
+install -m 755 "$REPO_DIR/scripts/loader.sh"    "$LIB_DIR/loader.sh"
+install -m 755 "$REPO_DIR/scripts/animation.sh" "$LIB_DIR/animation.sh"
+ok "$LIB_DIR/{loader,animation}.sh"
+
+# Los auxiliares (tambien fuera del PATH: se invocan desde el modulo).
+install -m 755 "$REPO_DIR/scripts/make-wallpaper.sh"     "$LIB_DIR/make-wallpaper.sh"
+install -m 755 "$REPO_DIR/scripts/prepare-wallpapers.sh" "$LIB_DIR/prepare-wallpapers.sh"
+ok "$LIB_DIR/{make-wallpaper,prepare-wallpapers}.sh"
+
+# Un shim en /usr/local/bin para que `sudo boot-preview loader` funcione:
 # ~/.local/bin no esta en el secure_path de sudo.
 if [[ -w /usr/local/bin ]] || sudo -n true 2>/dev/null; then
-  cat > /tmp/limine-preview-shim.$$ <<'SHIM'
+  cat > /tmp/boot-preview-shim.$$ <<'SHIM'
 #!/usr/bin/env bash
-# Wrapper de limine-preview para poder correrlo con `sudo`.
-# `sudo limine-preview` falla con "command not found" porque ~/.local/bin
+# Wrapper de boot-preview para poder correrlo con `sudo`.
+# `sudo boot-preview` falla con "command not found" porque ~/.local/bin
 # no esta en el secure_path de sudo. Si lo invoca root, baja al usuario que
 # lo lanzo: QEMU no debe correr como root (no tiene acceso al socket grafico).
 set -euo pipefail
-script="${HOME}/.local/bin/limine-preview"
+script="${HOME}/.local/bin/boot-preview"
 if [[ ! -x "$script" ]]; then
-  script="/home/b3low-z3r0/.local/bin/limine-preview"
+  script="/home/b3low-z3r0/.local/bin/boot-preview"
 fi
 if [[ "$(id -u)" == "0" && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
   exec sudo -u "$SUDO_USER" "$script" "$@"
 fi
 exec "$script" "$@"
 SHIM
-  if sudo install -m 755 /tmp/limine-preview-shim.$$ /usr/local/bin/limine-preview 2>/dev/null; then
-    ok "/usr/local/bin/limine-preview (shim para sudo)"
+  if sudo install -m 755 /tmp/boot-preview-shim.$$ /usr/local/bin/boot-preview 2>/dev/null; then
+    ok "/usr/local/bin/boot-preview (shim para sudo)"
   else
     warn "no se pudo instalar el shim en /usr/local/bin (sudo?)"
   fi
-  rm -f /tmp/limine-preview-shim.$$
+  rm -f /tmp/boot-preview-shim.$$
 else
-  warn "sin shim: `sudo limine-preview` no va a funcionar"
+  warn "sin shim: `sudo boot-preview` no va a funcionar"
 fi
 
 # ── 3. La config de prueba y el wallpaper ───────────────────────────────────
 step "3/5  La config de prueba"
 
-mkdir -p "$PREVIEW_DIR/wallpaper"
-if [[ -f "$PREVIEW_DIR/limine.conf" ]]; then
-  cp "$PREVIEW_DIR/limine.conf" "$PREVIEW_DIR/limine.conf.bak"
+mkdir -p "$LOADER_DIR/wallpaper"
+if [[ -f "$LOADER_DIR/limine.conf" ]]; then
+  cp "$LOADER_DIR/limine.conf" "$LOADER_DIR/limine.conf.bak"
   say "hay una config previa: guardada como limine.conf.bak"
 fi
-install -m 644 "$REPO_DIR/examples/limine-preview.conf" "$PREVIEW_DIR/limine.conf"
-ok "$PREVIEW_DIR/limine.conf"
+install -m 644 "$REPO_DIR/examples/loader.conf" "$LOADER_DIR/limine.conf"
+ok "$LOADER_DIR/limine.conf"
 
 # ── 4. El wallpaper ────────────────────────────────────────────────────────
 step "4/5  El wallpaper"
 
-if [[ -f "$PREVIEW_DIR/wallpaper/rei.png" ]]; then
-  ok "$PREVIEW_DIR/wallpaper/rei.png (ya estaba)"
+if [[ -f "$LOADER_DIR/wallpaper/rei.png" ]]; then
+  ok "$LOADER_DIR/wallpaper/rei.png (ya estaba)"
 else
-  install -m 644 "$REPO_DIR/examples/wallpaper/rei.png" "$PREVIEW_DIR/wallpaper/rei.png"
-  ok "$PREVIEW_DIR/wallpaper/rei.png"
+  install -m 644 "$REPO_DIR/examples/wallpaper/rei.png" "$LOADER_DIR/wallpaper/rei.png"
+  ok "$LOADER_DIR/wallpaper/rei.png"
 fi
 
 # La ACTIVA: la que usan el preview y `apply`. Si no existe, se copia la
 # nitida para que todo funcione de entrada; la difuminada la genera
-# `limine-preview wallpapers`.
-if [[ -f "$PREVIEW_DIR/wallpaper/wallpaper.png" ]]; then
-  ok "$PREVIEW_DIR/wallpaper/wallpaper.png (la activa, ya estaba)"
+# `boot-preview loader wallpapers`.
+if [[ -f "$LOADER_DIR/wallpaper/wallpaper.png" ]]; then
+  ok "$LOADER_DIR/wallpaper/wallpaper.png (la activa, ya estaba)"
 else
-  cp "$PREVIEW_DIR/wallpaper/rei.png" "$PREVIEW_DIR/wallpaper/wallpaper.png"
-  ok "$PREVIEW_DIR/wallpaper/wallpaper.png (la activa, copiada de rei.png)"
+  cp "$LOADER_DIR/wallpaper/rei.png" "$LOADER_DIR/wallpaper/wallpaper.png"
+  ok "$LOADER_DIR/wallpaper/wallpaper.png (la activa, copiada de rei.png)"
 fi
 
 # ── 5. La ruta del repo y la carpeta de previews ───────────────────────────
@@ -174,47 +180,37 @@ step "5/5  El repo y la carpeta de previews"
 
 # El CLI lo lee para saber dónde guardar las capturas (previews/) y dónde
 # vive el repo.
-printf '%s\n' "$REPO_DIR" > "$PREVIEW_DIR/repo"
-ok "$PREVIEW_DIR/repo -> $REPO_DIR"
+printf '%s\n' "$REPO_DIR" > "$CONFIG_DIR/repo"
+ok "$CONFIG_DIR/repo -> $REPO_DIR"
 
 mkdir -p "$REPO_DIR/previews"
 ok "$REPO_DIR/previews (capturas)"
 
-cat > "$PREVIEW_DIR/.gitignore" <<'EOF'
+cat > "$CONFIG_DIR/.gitignore" <<'EOF'
 # El wallpaper por defecto y sus variantes no van al repo.
-wallpaper/
+loader/wallpaper/
 EOF
-ok "$PREVIEW_DIR/.gitignore"
+ok "$CONFIG_DIR/.gitignore"
 
 # ── Listo ──────────────────────────────────────────────────────────────────
 printf '\n\033[1;38;2;125;207;216m✓ Listo.\033[0m\n\n'
 cat <<EOF
-  Ver el menú (ventana de QEMU):
-      limine-preview
+  LIMINE (el menú del bootloader):
+      boot-preview loader              # preview del menú
+      boot-preview loader real         # con tu config real de /boot/limine.conf
+      boot-preview loader shot         # captura a PNG
+      boot-preview loader add ~/Pictures/foto.png
+      boot-preview loader edit         # abrir la config en tu editor
+      boot-preview loader apply        # aplicar al Limine real
+      boot-preview loader wallpapers   # las dos versiones del wallpaper
 
-  Verlo con tu config real de /boot/limine.conf:
-      limine-preview real
-
-  Capturar a PNG (van a $REPO_DIR/previews/):
-      limine-preview shot
-
-  Poner una imagen nueva como wallpaper del preview:
-      limine-preview add ~/Pictures/foto.png
-
-  Editar la config del preview:
-      limine-preview edit
-
-  Aplicar al Limine real (wallpaper + config visual):
-      limine-preview apply
-
-  Generar las dos versiones del wallpaper (la difuminada queda activa):
-      limine-preview wallpapers
+  PLYMOUTH (el splash de la animación):
+      boot-preview animation access    # una vez por sesión: acceso de root al X
+      boot-preview animation           # ventana con el splash
+      boot-preview animation shot      # captura a PNG
+      boot-preview animation sources   # los temas instalados
+      boot-preview animation use <tema>   # aplicarlo al sistema (-R)
 
   En la ventana de QEMU: flechas, ENTER para bootear, E para editar la
   config, F1 para el firmware, ESC para salir. Ctrl+Q cierra QEMU.
-
-  Plymouth (el splash de arranque, sin VM):
-      plymouth-preview access     # una vez por sesion: acceso de root al X
-      plymouth-preview            # ventana con el splash
-      plymouth-preview shot       # captura a PNG
 EOF

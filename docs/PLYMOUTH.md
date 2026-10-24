@@ -39,19 +39,19 @@ es un selector, no un editor. Los PNG se leen **al arrancar** el daemon.
 
 ## Cómo se previsualiza
 
-### `plymouth-preview`
+### `boot-preview animation`
 
 ```bash
-plymouth-preview access               # una vez por sesión (ver abajo)
-plymouth-preview                      # ventana con el splash
-plymouth-preview x11 [segundos]       # idem, con límite de tiempo
-plymouth-preview shot [archivo]       # captura el splash
-plymouth-preview sources              # temas de Plymouth instalados
-plymouth-preview preview <tema>       # tema SOLO del preview
-plymouth-preview use <tema>           # tema del SISTEMA (-R)
-plymouth-preview steam-source         # videos de Steam
-plymouth-preview steam-convert <vid>  # convierte un video en tema
-plymouth-preview steam-apply <vid>    # convierte y aplica al sistema
+boot-preview animation access               # una vez por sesión (ver abajo)
+boot-preview animation                      # ventana con el splash
+boot-preview animation x11 [segundos]       # idem, con límite de tiempo
+boot-preview animation shot [archivo]       # captura el splash
+boot-preview animation sources              # temas de Plymouth instalados
+boot-preview animation preview <tema>       # tema SOLO del preview
+boot-preview animation use <tema>           # tema del SISTEMA (-R)
+boot-preview animation steam-source         # videos de Steam
+boot-preview animation steam-convert <vid>  # convierte un video en tema
+boot-preview animation steam-apply <vid>    # convierte y aplica al sistema
 ```
 
 ### Qué hay por debajo
@@ -61,7 +61,7 @@ imágenes: es el mismo daemon, los mismos plugins y el mismo tema que usa la
 máquina al arrancar.
 
 ```
-plymouth-preview
+boot-preview animation
   └─ plymouthd (root, del sistema)
        └─ renderers/x11.so              ← dibuja en una ventana GTK
             └─ plugins/splash/script.so  ← el tema (script o two-step)
@@ -107,7 +107,7 @@ created`) y Plymouth cae a DRM → **pantalla negra, sin error visible**.
 **La solución, una vez por sesión:**
 
 ```bash
-plymouth-preview access
+boot-preview animation access
 ```
 
 Que es:
@@ -213,7 +213,7 @@ segundos, y se puede capturar frame a frame.
 ### Cuál es el video activo
 
 ```bash
-plymouth-preview steam-source
+boot-preview animation steam-source
 ```
 
 ```
@@ -282,10 +282,10 @@ con la clave `"GetStartupMovies"`, que es un JSON con `name`, `appid`,
 ### Convertirlo en tema
 
 ```bash
-plymouth-preview steam-convert                      # el que está activo
-plymouth-preview steam-apply                        # el que está activo + lo aplica
-plymouth-preview steam-convert ~/otro.webm          # un video puntual
-plymouth-preview steam-apply deck_startup.webm      # nombre relativo a movies/
+boot-preview animation steam-convert                      # el que está activo
+boot-preview animation steam-apply                        # el que está activo + lo aplica
+boot-preview animation steam-convert ~/otro.webm          # un video puntual
+boot-preview animation steam-apply deck_startup.webm      # nombre relativo a movies/
 ```
 
 Ajustes por variable de entorno: `STEAM_FPS` (default 30) y `STEAM_RES`
@@ -312,29 +312,29 @@ El nombre sale del **nombre real** del item: `steam-elden-ring-ranni`.
 Para trabajar cómodo:
 
 ```bash
-STEAM_FPS=15 STEAM_RES=1280x720 plymouth-preview steam-convert
+STEAM_FPS=15 STEAM_RES=1280x720 boot-preview animation steam-convert
 ```
 
 ### Aplicar un tema al sistema
 
 ```bash
-plymouth-preview use <nombre>    # plymouth-set-default-theme -R
+boot-preview animation use <nombre>    # plymouth-set-default-theme -R
 ```
 
 **Ojo**: `-R` regenera el initramfs real (~30 s). Es lo que hace que el tema
 se vea en el próximo arranque; sin `-R` no se aplica.
 
-Para volver al de CachyOS: `plymouth-preview use cachyos-bootanimation`.
+Para volver al de CachyOS: `boot-preview animation use cachyos-bootanimation`.
 
 ### Verlo antes de aplicarlo
 
 ```bash
-plymouth-preview preview steam-elden-ring-ranni   # solo el preview
-plymouth-preview                                  # mirarlo
-plymouth-preview shot                             # captura
+boot-preview animation preview steam-elden-ring-ranni   # solo el preview
+boot-preview animation                                  # mirarlo
+boot-preview animation shot                             # captura
 ```
 
-`preview` solo escribe `~/.config/plymouth-preview/theme`. El sistema no se
+`preview` solo escribe `~/.config/boot-preview/animation/theme`. El sistema no se
 toca.
 
 > **Nota**: `plymouth.theme=` y `plymouth.splash=` en el cmdline **no**
@@ -393,7 +393,7 @@ No hay IDE ni GUI oficial. Lo que existe:
 | `plymouthd --debug --debug-file=...` | log de todo lo que hace el daemon |
 | `plymouth --reload` | recarga el tema sin reiniciar el daemon (parcial) |
 | `showplymouth.sh` (repo adi1090x) | script de 20 líneas: `plymouthd; --show-splash; sleep N; --quit` |
-| **este repo** | `plymouth-preview` con `access`, `shot`, `preview`, `use` |
+| **este repo** | `boot-preview animation` con `access`, `shot`, `preview`, `use` |
 
 ### Paquetes que hacen falta
 

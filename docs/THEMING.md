@@ -212,7 +212,7 @@ los modelos de Real-ESRGAN (y ESRGAN anime).
 ```bash
 # 1. en Upscayl: escala x4 con el modelo "RealESRGAN Anime" y guardá
 # 2. la imagen entra al preview
-limine-preview add ~/Pictures/foto-4x.png
+boot-preview loader add ~/Pictures/foto-4x.png
 ```
 
 **El truco**: upscalear x4 y después **bajar** a la resolución final con

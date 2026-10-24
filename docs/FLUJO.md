@@ -1,6 +1,6 @@
 # El flujo completo
 
-Qué pasa, en orden, desde que escribís `limine-preview` hasta que el menú de
+Qué pasa, en orden, desde que escribís `boot-preview loader` hasta que el menú de
 Limine aparece en la ventana de QEMU.
 
 ---
@@ -9,7 +9,7 @@ Limine aparece en la ventana de QEMU.
 
 | # | Path | Qué es | ¿La carga el preview? |
 |---|---|---|---|
-| **1** | `~/.config/limine-preview/limine.conf` | la config **de prueba** | ✅ por default |
+| **1** | `~/.config/boot-preview/loader/limine.conf` | la config **de prueba** | ✅ por default |
 | **2** | `/boot/limine.conf` | la config **compilada** que Limine lee en el boot | ✅ solo con `--real` |
 | **3** | `/etc/default/limine` | la **fuente** (la editás vos) | ❌ nunca se toca |
 
@@ -22,8 +22,8 @@ y **no escribe ninguna**.
 
 | Pieza | Dónde vive | Qué hace |
 |---|---|---|
-| **tu config** | `~/.config/limine-preview/limine.conf` | la config de Limine que se prueba |
-| **el script** | `~/.local/bin/limine-preview` | arma el ISO y lanza QEMU |
+| **tu config** | `~/.config/boot-preview/loader/limine.conf` | la config de Limine que se prueba |
+| **el script** | `~/.local/bin/boot-preview loader` | arma el ISO y lanza QEMU |
 | **xorriso** | `libisoburn` | construye el ISO híbrido |
 | **QEMU** | `qemu-desktop` | emula la máquina |
 | **OVMF** | `edk2-ovmf` | el firmware UEFI (el mismo que usa tu laptop) |
@@ -36,7 +36,7 @@ y **no escribe ninguna**.
 ### 1. Parseo de argumentos
 
 ```bash
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview loader"
 config="$CONFIG_DIR/limine.conf"        # la config de prueba (la #1)
 wallpaper="$CONFIG_DIR/wallpaper/wallpaper.png"   # la ACTIVA
 ```
@@ -50,7 +50,7 @@ copiada a un temporal con `sudo cat`.
 ### 2. Si es `--real`: copiar la config del sistema
 
 ```bash
-real_conf="$(mktemp /tmp/limine-preview-real.XXXXXX.conf)"
+real_conf="$(mktemp /tmp/boot-preview loader-real.XXXXXX.conf)"
 sudo cat /boot/limine.conf > "$real_conf"
 chmod 644 "$real_conf"
 ```
@@ -88,7 +88,7 @@ interface_resolution: 1920x1080"""
 ### 4. Armar el árbol del ISO
 
 ```
-/tmp/limine-preview/
+/tmp/boot-preview/loader/
 ├── limine.conf          ← tu config + lo inyectado
 ├── wallpaper.png        ← el wallpaper
 ├── EFI/BOOT/BOOTX64.EFI ← el binario UEFI
@@ -104,7 +104,7 @@ xorriso -as mkisofs -R -r -J -b limine-bios-cd.bin \
   -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
   -apm-block-size 2048 --efi-boot limine-uefi-cd.bin \
   -efi-boot-part --efi-boot-image --protective-msdos-label \
-  . -o limine-preview.iso
+  . -o loader.iso
 ```
 
 Es **híbrido**: arranca en UEFI y en BIOS.
@@ -116,9 +116,9 @@ qemu-system-x86_64 \
   -enable-kvm \
   -m 512 \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
-  -drive if=pflash,format=raw,file=/tmp/limine-preview/OVMF_VARS.fd \
-  -cdrom /tmp/limine-preview/limine-preview.iso \
-  -monitor unix:/tmp/limine-preview/monitor.sock,server,nowait \
+  -drive if=pflash,format=raw,file=/tmp/boot-preview/loader/OVMF_VARS.fd \
+  -cdrom /tmp/boot-preview/loader/loader.iso \
+  -monitor unix:/tmp/boot-preview/loader/monitor.sock,server,nowait \
   -boot d
 ```
 
@@ -133,7 +133,7 @@ En vez de abrir la ventana, el script habla con el **monitor de QEMU** por un
 socket Unix:
 
 ```bash
-echo "screendump /tmp/limine-preview/shot.ppm" | socat - UNIX-CONNECT:/tmp/limine-preview/monitor.sock
+echo "screendump /tmp/boot-preview/loader/shot.ppm" | socat - UNIX-CONNECT:/tmp/boot-preview/loader/monitor.sock
 magick shot.ppm -resize 1920x1080 preview.png
 ```
 
@@ -145,7 +145,7 @@ no una simulación.
 ## El diagrama del flujo de datos
 
 ```
-  ~/.config/limine-preview/limine.conf
+  ~/.config/boot-preview/loader/limine.conf
               │
               │  (--real: sudo cat /boot/limine.conf)
               ▼
@@ -156,7 +156,7 @@ no una simulación.
       │  ANTES de la 1ª entrada│
       └──────────┬───────────┘
                  ▼
-     /tmp/limine-preview/
+     /tmp/boot-preview/loader/
        ├── limine.conf
        ├── wallpaper.png
        ├── EFI/BOOT/BOOTX64.EFI
@@ -165,7 +165,7 @@ no una simulación.
                  │
                  │  xorriso -as mkisofs
                  ▼
-        limine-preview.iso  (híbrido)
+        loader.iso  (híbrido)
                  │
                  │  qemu-system-x86_64 -enable-kvm
                  │  + OVMF (UEFI) + -cdrom
@@ -211,7 +211,7 @@ formas Material 3 por `kitty-shapes`) y el login screen (sin recortar).
 | "Could not read from CDROM" | se usó `-drive if=virtio` | `-cdrom` |
 | "failed to open kernel" | la entrada指针 a un kernel que no está en el ISO | es normal si autobootea; usá `timeout: no` |
 | El texto se ve enorme | `term_font_scale` automático = 1×1 a 1920×1080 | `term_font_scale: 1` (es el valor que usamos: `2x2` se come la pantalla) |
-| `sudo limine-preview` → command not found | `~/.local/bin` no está en el `secure_path` | el shim en `/usr/local/bin/limine-preview` |
+| `sudo boot-preview loader` → command not found | `~/.local/bin` no está en el `secure_path` | el shim en `/usr/local/bin/boot-preview loader` |
 | `cp: Permission denied` | se usó `sudo cp` para la config real | `sudo cat ... > archivo` |
 
 ---
@@ -233,13 +233,13 @@ capturar: tiempo de sobra para que arranque la VM con KVM.
 ## Tus ficheros, de un vistazo
 
 ```
-~/.local/bin/limine-preview                    el script
-/usr/local/bin/limine-preview                   el shim para sudo
-~/.config/limine-preview/limine.conf           la config de prueba
-~/.config/limine-preview/wallpaper/wallpaper.png la imagen activa
-~/.config/limine-preview/wallpaper/rei-blur.png  la difuminada
-/tmp/limine-preview/                           el ISO y el socket del monitor
-/tmp/limine-preview-real.*.conf                la config real (temporal)
+~/.local/bin/boot-preview loader                    el script
+/usr/local/bin/boot-preview loader                   el shim para sudo
+~/.config/boot-preview/loader/limine.conf           la config de prueba
+~/.config/boot-preview/loader/wallpaper/wallpaper.png la imagen activa
+~/.config/boot-preview/loader/wallpaper/rei-blur.png  la difuminada
+/tmp/boot-preview/loader/                           el ISO y el socket del monitor
+/tmp/boot-preview loader-real.*.conf                la config real (temporal)
 ```
 
 ---

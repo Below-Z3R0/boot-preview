@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
-# limine-preview — ver el menú de Limine sin reiniciar la máquina.
+# boot-preview loader — ver el menú de Limine sin reiniciar la máquina.
 #
 # Construye un ISO híbrido con tu config de Limine y lo abre en QEMU con KVM.
 # El render es EXACTO: es el mismo bootloader, el mismo wallpaper y la misma
 # paleta. No toca el disco real.
 #
-#   limine-preview                # preview del menú (lo de siempre)
-#   limine-preview real           # con tu config real de /boot/limine.conf
-#   limine-preview shot           # captura a PNG (en <repo>/previews/)
-#   limine-preview add IMAGEN     # pone una imagen como wallpaper del preview
-#   limine-preview edit           # abre la config del preview en un editor
-#   limine-preview wall IMAGEN    # preview con otro wallpaper (sin instalarlo)
-#   limine-preview wallpapers     # genera las dos versiones del wallpaper
-#   limine-preview apply          # aplica wallpaper + config al Limine real
-#   limine-preview apply config   # solo la config visual
-#   limine-preview apply wallpaper # solo el wallpaper
-#   limine-preview setup          # instala dependencias y archivos
-#   limine-preview help           # esta ayuda
+#   boot-preview loader           # preview del menú (lo de siempre)
+#   boot-preview loader real      # con tu config real de /boot/limine.conf
+#   boot-preview loader shot      # captura a PNG (en <repo>/previews/)
+#   boot-preview loader add IMG   # pone una imagen como wallpaper del preview
+#   boot-preview loader edit      # abre la config del preview en un editor
+#   boot-preview loader wall IMG  # preview con otro wallpaper (sin instalarlo)
+#   boot-preview loader wallpapers# genera las dos versiones del wallpaper
+#   boot-preview loader apply     # aplica wallpaper + config al Limine real
+#   boot-preview loader apply config   # solo la config visual
+#   boot-preview loader apply wallpaper # solo el wallpaper
+#   boot-preview loader help      # esta ayuda
 #
 set -euo pipefail
 
 # ── Rutas ────────────────────────────────────────────────────────────────────
 LIMINE_DIR="${LIMINE_DIR:-/usr/share/limine}"
-WORK_DIR="${WORK_DIR:-/tmp/limine-preview}"
+WORK_DIR="${WORK_DIR:-/tmp/boot-preview-loader}"
 
 # BUG FIX: abajo hay un `rm -rf "$WORK_DIR"`. Si alguien exporta WORK_DIR=/ o
 # WORK_DIR=$HOME, eso se lleva medio sistema. Se valida antes de tocar nada.
@@ -33,7 +32,7 @@ if [[ -z "$WORK_DIR" || "$WORK_DIR" == "/" || "$WORK_DIR" == "$HOME" || "$WORK_D
 fi
 # La config de PRUEBA (la que carga el preview por default).
 # Respeta XDG_CONFIG_HOME, igual que install.sh.
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview/loader"
 DEFAULT_CONF="$CONFIG_DIR/limine.conf"
 # El wallpaper por defecto es el del repo. Cualquier otro se pasa con `wall`.
 # La imagen ACTIVA: una sola para el preview y para el Limine real. La fija
@@ -43,8 +42,10 @@ DEFAULT_CONF="$CONFIG_DIR/limine.conf"
 DEFAULT_WALLPAPER="$CONFIG_DIR/wallpaper/wallpaper.png"
 
 # La ruta del repo, la guarda install.sh. Se usa para las capturas (previews/).
+# Vive un nivel arriba de la config del loader.
 REPO_DIR=""
-[[ -f "$CONFIG_DIR/repo" ]] && REPO_DIR="$(cat "$CONFIG_DIR/repo")"
+repo_file="$(dirname "$CONFIG_DIR")/repo"
+[[ -f "$repo_file" ]] && REPO_DIR="$(cat "$repo_file")"
 [[ -d "$REPO_DIR" ]] || REPO_DIR=""
 
 conf="${DEFAULT_CONF}"
@@ -60,10 +61,10 @@ apply_what="all"
 
 usage() {
   cat <<'EOF'
-limine-preview — ver el menú de Limine sin reiniciar
+boot-preview loader — ver el menú de Limine sin reiniciar
 
 USO
-  limine-preview [comando] [opciones]
+  boot-preview loader [comando] [opciones]
 
 VER
   (ninguno)        Preview del menú, con la config de prueba
@@ -91,11 +92,11 @@ OTROS
   help             Esta ayuda
 
 EJEMPLOS
-  limine-preview
-  limine-preview shot
-  limine-preview add ~/Pictures/foto.png
-  limine-preview edit
-  limine-preview apply
+  boot-preview loader
+  boot-preview loader shot
+  boot-preview loader add ~/Pictures/foto.png
+  boot-preview loader edit
+  boot-preview loader apply
 
 OPCIONES AVANZADAS
   -c, --config <ruta>     Config de Limine a usar
@@ -172,8 +173,8 @@ case "$command" in
     # El preview usa el wallpaper recien puesto
     wallpaper="$target"
     echo ""
-    echo "  Para verlo:  limine-preview"
-    echo "  Para aplicarlo al Limine real:  limine-preview apply wallpaper"
+    echo "  Para verlo:  boot-preview loader"
+    echo "  Para aplicarlo al Limine real:  boot-preview loader apply wallpaper"
     exit 0
     ;;
 
@@ -186,8 +187,8 @@ case "$command" in
       done
     fi
     [[ -n "$editor" ]] || { echo "No encuentro un editor (proba con EDITOR=...)" >&2; exit 1; }
-    echo "  Abriendo $CONFIG_DIR/limine.conf con $editor"
-    exec "$editor" "$CONFIG_DIR/limine.conf"
+    echo "  Abriendo $DEFAULT_CONF con $editor"
+    exec "$editor" "$DEFAULT_CONF"
     ;;
 
   apply)
@@ -229,9 +230,9 @@ case "$command" in
       sudo bash -c 'ls -1t /boot/limine.conf.bak-* 2>/dev/null | tail -n +6 | xargs -r rm -f'
 
       # Se toma el bloque de theming de la config del PREVIEW (que es la
-      # que edita el usuario con `limine-preview edit`) y se inyecta en el
+      # que edita el usuario con `boot-preview loader edit`) y se inyecta en el
       # conf real.
-      sudo python3 - "$CONFIG_DIR/limine.conf" <<'PY'
+      sudo python3 - "$DEFAULT_CONF" <<'PY'
 import re, sys
 
 preview_path = sys.argv[1]
@@ -286,7 +287,7 @@ if not block:
 # dejo los comentarios): si no, al reinsertar el bloque se duplican.
 OWN_COMMENTS = (
     "# ── Limine theming (b3l0wz3r0-os) ──",
-    "# Aplicado por limine-preview apply",
+    "# Aplicado por boot-preview loader apply",
     "# y volvé a aplicar para cambiarlo",
 )
 
@@ -313,7 +314,7 @@ for index, line in enumerate(lines):
         break
 
 header = ["# ── Limine theming (b3l0wz3r0-os) ──",
-          "# Aplicado por limine-preview apply. Editá la config del preview",
+          "# Aplicado por boot-preview loader apply. Editá la config del preview",
           "# y volvé a aplicar para cambiarlo."]
 new = lines[:insert_at] + header + block + lines[insert_at:]
 open(real_path, "w", encoding="utf-8").write("\n".join(new) + "\n")
@@ -323,26 +324,28 @@ PY
 
     echo ""
     echo "  Para verlo antes de reiniciar:"
-    echo "      limine-preview real"
+    echo "      boot-preview loader real"
     echo ""
     echo "  Para que tome efecto:  sudo reboot"
     exit 0
     ;;
 
   wallpapers)
-    if ! command -v prepare-wallpapers >/dev/null 2>&1; then
-      echo "FALTA: prepare-wallpapers (corré scripts/install.sh)" >&2
+    # prepare-wallpapers vive en ~/.local/lib/boot-preview/, fuera del PATH.
+    # Se busca al lado de este script (instalado) o en el repo.
+    prep=""
+    for cand in "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/prepare-wallpapers.sh" \
+                "$REPO_DIR/scripts/prepare-wallpapers.sh"; do
+      [[ -f "$cand" ]] && { prep="$cand"; break; }
+    done
+    [[ -n "$prep" ]] || {
+      echo "FALTA: prepare-wallpapers.sh (corré boot-preview setup)" >&2
       exit 1
-    fi
-    exec prepare-wallpapers "$@"
+    }
+    exec bash "$prep" "$@"
     ;;
   setup)
-    repo_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." 2>/dev/null && pwd || true)"
-    if [[ -n "$repo_dir" && -x "$repo_dir/scripts/install.sh" ]]; then
-      exec "$repo_dir/scripts/install.sh"
-    fi
-    echo "No encuentro el install.sh del repo. Bajá el repo y corré:" >&2
-    echo "    ./scripts/install.sh" >&2
+    echo "La instalación es de todo el tool:  boot-preview setup" >&2
     exit 1
     ;;
 esac
@@ -351,7 +354,7 @@ esac
 if [[ "$real" == "1" ]]; then
   # mktemp evita chocar con un archivo viejo que quedo de una corrida
   # anterior (creado por root y sin permisos de escritura para el usuario).
-  real_conf="$(mktemp /tmp/limine-preview-real.XXXXXX.conf)"
+  real_conf="$(mktemp /tmp/boot-preview-loader-real.XXXXXX.conf)"
   # OJO: `sudo cat ... > archivo` y no `sudo cp ... archivo`. Con `sudo cp` el
   # archivo queda con el modo de /boot/limine.conf (-rwx------ root), y el
   # usuario no lo puede leer en el paso siguiente.
@@ -388,7 +391,7 @@ if [[ "$command" == "shot" ]]; then
       shot_dir="$PWD"
     fi
     mkdir -p "$shot_dir"
-    shot="$shot_dir/limine-preview-$(date +%Y%m%d-%H%M%S).png"
+    shot="$shot_dir/loader-$(date +%Y%m%d-%H%M%S).png"
   elif [[ "$shot" != /* ]]; then
     # Un nombre relativo va al directorio de previews tambien.
     if [[ -n "$REPO_DIR" ]]; then
@@ -425,7 +428,7 @@ text = re.sub(r"^\s*(wallpaper|wallpaper_style|interface_resolution)\s*:.*$", ""
 # y se va de la pantalla antes de que puedas mirarla.
 text = re.sub(r"^\s*timeout\s*:.*$", "", text, flags=re.M)
 
-inject = f"""# ── inyectado por limine-preview ──
+inject = f"""# ── inyectado por boot-preview loader ──
 timeout: no
 wallpaper: boot():/wallpaper.png
 wallpaper_style: centered
@@ -449,7 +452,7 @@ PY
 cp "$wallpaper" "$WORK_DIR/wallpaper.png"
 
 # ── Construir el ISO híbrido (UEFI + BIOS) ──────────────────────────────────
-iso="$WORK_DIR/limine-preview.iso"
+iso="$WORK_DIR/boot-preview-loader.iso"
 (
   cd "$WORK_DIR"
   xorriso -as mkisofs -R -r -J -b limine-bios-cd.bin \

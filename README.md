@@ -1,6 +1,20 @@
-# limine-preview
+# boot-preview
 
-Ver el **menú de Limine** sin reiniciar la máquina.
+Ver el **arranque de Linux** sin reiniciar la máquina.
+
+Son dos pantallas distintas, en dos momentos distintos:
+
+| | Qué es | Cuándo |
+|---|---|---|
+| **`loader`** | El **menú de Limine**, el bootloader | Elegís qué booteás |
+| **`animation`** | El **splash de Plymouth**, la animación | Arranca el kernel |
+
+```bash
+boot-preview loader      # el menú
+boot-preview animation   # la animación
+```
+
+## El menú de Limine (`loader`)
 
 Limine no tiene previewer: no hay nada en el repo upstream, ni herramienta
 online, ni preview en la comunidad. La única forma de ver el menú sin
@@ -10,28 +24,45 @@ reiniciar es **emularlo**. Este repo lo hace:
 tu config de Limine  →  ISO híbrido  →  QEMU con KVM  →  el menú real
 ```
 
-El render es **exacto**: es el mismo bootloader, el mismo wallpaper y la
-misma paleta. Tu `/boot/limine.conf` **no se toca**.
+El render es **exacto**: es el mismo bootloader, el mismo wallpaper y la misma
+paleta. Tu `/boot/limine.conf` **no se toca**.
+
+## El splash de Plymouth (`animation`)
+
+Plymouth tampoco tiene previewer. Pero su daemon (`plymouthd`) trae un
+renderer **X11** que dibuja en una ventana normal:
 
 ```
-examples/
-├── limine-preview.sh      # el script (fuente de verdad)
-├── limine-preview.conf    # la config de prueba
-├── theming-rosepine.conf  # el bloque de theming para aplicar al sistema
-└── wallpaper/rei.png       # el wallpaper de ejemplo
-    rosepine.png            # un gradiente Rosé Pine alternativo
-    rosepine.qoi            # el mismo, en QOI (Limine lo soporta nativamente)
-docs/
-├── FLUJO.md               # el flujo completo, de la config a la pantalla
-├── THEMING.md             # las 52 opciones y qué se puede personalizar
-├── APLICAR.md             # cómo aplicar el tema al Limine real
-├── RENDIMIENTO.md         # las mediciones y la comparativa Bun vs bash
-└── PLYMOUTH.md            # el splash de arranque (que sí es Plymouth)
-scripts/
-├── install.sh              # deja todo andando
-├── make-wallpaper.sh       # blur + velo + resolución, para Limine
-├── plymouth-preview.sh     # preview del splash de arranque
-└── prepare-wallpapers.sh   # genera las dos versiones (real y difuminada)
+el plymouthd del sistema  →  renderers/x11.so  →  una ventana GTK
+```
+
+Sin VM, sin initramfs, en segundos. Es el mismo daemon, los mismos plugins y
+el mismo tema que usa la máquina al arrancar.
+
+```
+boot-preview/
+├── scripts/
+│   ├── boot-preview.sh       # el dispatcher: `boot-preview <loader|animation>`
+│   ├── loader.sh             # el módulo de Limine (el menú)
+│   ├── animation.sh          # el módulo de Plymouth (el splash)
+│   ├── install.sh            # deja todo andando
+│   ├── make-wallpaper.sh     # blur + velo + resolución, para Limine
+│   └── prepare-wallpapers.sh # genera las dos versiones del wallpaper
+├── examples/
+│   ├── loader.conf           # la config de prueba
+│   ├── theming-rosepine.conf # el bloque de theming para aplicar al sistema
+│   └── wallpaper/
+│       ├── rei.png           # el wallpaper de ejemplo
+│       ├── rosepine.png      # un gradiente Rosé Pine alternativo
+│       └── rosepine.qoi      # el mismo, en QOI (Limine lo soporta nativamente)
+├── docs/
+│   ├── FLUJO.md              # el flujo completo, de la config a la pantalla
+│   ├── THEMING.md            # las 52 opciones y qué se puede personalizar
+│   ├── APLICAR.md            # cómo aplicar el tema al Limine real
+│   ├── RENDIMIENTO.md        # las mediciones y la comparativa Bun vs bash
+│   └── PLYMOUTH.md           # el splash de arranque (que sí es Plymouth)
+├── previews/                 # las capturas
+└── LICENSE
 ```
 
 ## Las tres configs de Limine
@@ -41,7 +72,7 @@ forma distinta. Esta tabla es la que hay que tener clara:
 
 | # | Path | Qué es | Quién la escribe | ¿La carga el preview? |
 |---|---|---|---|---|
-| **1** | `~/.config/limine-preview/limine.conf` | la config **de prueba** — la que edita el usuario para iterar el tema | `install.sh` la instala desde `examples/limine-preview.conf`; el script la inyecta con el wallpaper | ✅ **por default** |
+| **1** | `~/.config/boot-preview/loader/limine.conf` | la config **de prueba** — la que edita el usuario para iterar el tema | `install.sh` la instala desde `examples/loader.conf`; el script la inyecta con el wallpaper | ✅ **por default** |
 | **2** | `/boot/limine.conf` | la config **compilada** que Limine lee de verdad en el boot (99 KB, autogenerada) | `limine-mkinitcpio` la genera desde la #3 | ✅ solo con `--real` (se lee con sudo) |
 | **3** | `/etc/default/limine` | la **fuente** — cmdline del kernel, boot order, y el theming que agregues | **la editás vos** | ❌ nunca se toca |
 
@@ -108,14 +139,14 @@ monitor, no por VNC.
 Lo que se ve **después** de elegir CachyOS. No es Limine: es otro sistema.
 
 ```bash
-plymouth-preview access               # una vez por sesión: acceso de root al X
-plymouth-preview                      # ventana con el splash
-plymouth-preview shot [archivo]       # captura + contact sheet
-plymouth-preview sources              # los temas de Plymouth instalados
-plymouth-preview preview <tema>       # tema SOLO del preview
-plymouth-preview use <tema>           # aplica un tema al sistema (-R)
-plymouth-preview steam-source         # los videos de Steam (cuál está activo)
-plymouth-preview steam-convert <vid>  # convierte el video de Steam en tema
+boot-preview animation access               # una vez por sesión: acceso de root al X
+boot-preview animation                      # ventana con el splash
+boot-preview animation shot [archivo]       # captura + contact sheet
+boot-preview animation sources              # los temas de Plymouth instalados
+boot-preview animation preview <tema>       # tema SOLO del preview
+boot-preview animation use <tema>           # aplica un tema al sistema (-R)
+boot-preview animation steam-source         # los videos de Steam (cuál está activo)
+boot-preview animation steam-convert <vid>  # convierte el video de Steam en tema
 ```
 
 Usa el **Plymouth oficial del sistema** con el renderer X11: dibuja en una
@@ -123,7 +154,7 @@ ventana GTK sobre tu escritorio. Sin VM, sin initramfs, sin QEMU.
 
 > **Requisito**: `plymouthd` exige root, y root necesita acceso al servidor
 > X (`xhost +SI:localuser:root`). Sin eso el splash no aparece y no hay
-> error. `plymouth-preview access` lo resuelve.
+> error. `boot-preview animation access` lo resuelve.
 
 Detalle en [docs/PLYMOUTH.md](docs/PLYMOUTH.md).
 
@@ -158,8 +189,8 @@ Detalles de los cambios:
 ## Instalación
 
 ```bash
-git clone https://github.com/tu-usuario/limine-preview.git
-cd limine-preview
+git clone https://github.com/tu-usuario/boot-preview loader.git
+cd boot-preview loader
 ./scripts/install.sh
 ```
 
@@ -169,11 +200,11 @@ Es idempotente: podés volver a correrlo las veces que quieras.
 
 | Paso | Qué hace |
 |---|---|
-| **1. Dependencias** | verifica (e instala con sudo si falta) `qemu-desktop`, `libisoburn` (xorriso), `imagemagick`, `socat`, `edk2-ovmf`. Avisa si falta `/dev/kvm` |
-| **2. Los scripts** | `limine-preview`, `make-wallpaper` y `prepare-wallpapers` a `~/.local/bin/`. Más un shim en `/usr/local/bin/` para que `sudo limine-preview` funcione (el `secure_path` de sudo no incluye `~/.local/bin`) |
-| **3. La config** | crea `~/.config/limine-preview/limine.conf` desde `examples/`. Si ya había una, la guarda como `.bak` |
-| **4. El wallpaper** | copia el de ejemplo a `~/.config/limine-preview/wallpaper/rei.png` (no lo pisa si ya está) |
-| **5. El repo** | guarda la ruta del repo en `~/.config/limine-preview/repo` (el CLI la usa para saber dónde van las capturas) y crea `<repo>/previews/` |
+| **1. Dependencias** | verifica (e instala con sudo si falta) `qemu-desktop`, `libisoburn` (xorriso), `imagemagick`, `socat`, `edk2-ovmf` para Limine; `ffmpeg`, `xdotool`, `xorg-xhost` para Plymouth. Avisa si falta `/dev/kvm` |
+| **2. Los scripts** | `boot-preview` (el dispatcher) a `~/.local/bin/`. Los dos módulos (`loader.sh`, `animation.sh`) y los auxiliares van a `~/.local/lib/boot-preview/`, **fuera del PATH**: el usuario solo ve un comando. Más un shim en `/usr/local/bin/` para que `sudo boot-preview` funcione (el `secure_path` de sudo no incluye `~/.local/bin`) |
+| **3. La config** | crea `~/.config/boot-preview/loader/limine.conf` desde `examples/loader.conf`. Si ya había una, la guarda como `.bak` |
+| **4. El wallpaper** | copia el de ejemplo a `~/.config/boot-preview/loader/wallpaper/rei.png` (no lo pisa si ya está) |
+| **5. El repo** | guarda la ruta del repo en `~/.config/boot-preview/repo` (el CLI la usa para saber dónde van las capturas) y crea `<repo>/previews/` |
 
 **No toca nada del sistema**: ni `/boot/limine.conf`, ni
 `/etc/default/limine`, ni el initramfs. Eso es del `apply`, que es un acto
@@ -183,28 +214,28 @@ O a mano, paso a paso:
 
 ```bash
 # 1. Dependencias
-sudo pacman -S --needed qemu-desktop libisoburn edk2-ovmf imagemagick
+sudo pacman -S --needed qemu-desktop libisoburn edk2-ovmf imagemagick \
+    ffmpeg xdotool xorg-xhost
 
-# 2. El script
-install -m 755 examples/limine-preview.sh ~/.local/bin/limine-preview
+# 2. Los scripts
+mkdir -p ~/.local/lib/boot-preview
+install -m 755 scripts/boot-preview.sh ~/.local/bin/boot-preview
+install -m 755 scripts/loader.sh    ~/.local/lib/boot-preview/loader.sh
+install -m 755 scripts/animation.sh ~/.local/lib/boot-preview/animation.sh
+install -m 755 scripts/make-wallpaper.sh     ~/.local/lib/boot-preview/
+install -m 755 scripts/prepare-wallpapers.sh ~/.local/lib/boot-preview/
 
 # 3. La config de prueba
-mkdir -p ~/.config/limine-preview
-install -m 644 examples/limine-preview.conf ~/.config/limine-preview/limine.conf
+mkdir -p ~/.config/boot-preview/loader/wallpaper
+install -m 644 examples/loader.conf ~/.config/boot-preview/loader/limine.conf
 
 # 4. El wallpaper (rei.png + la activa)
-mkdir -p ~/.config/limine-preview/wallpaper
-install -m 644 examples/wallpaper/rei.png ~/.config/limine-preview/wallpaper/rei.png
-cp ~/.config/limine-preview/wallpaper/rei.png \
-   ~/.config/limine-preview/wallpaper/wallpaper.png
+install -m 644 examples/wallpaper/rei.png ~/.config/boot-preview/loader/wallpaper/rei.png
+cp ~/.config/boot-preview/loader/wallpaper/rei.png \
+   ~/.config/boot-preview/loader/wallpaper/wallpaper.png
 
 # 4b. La ruta del repo (para que `shot` sepa dónde guardar)
-dirname "$(readlink -f examples/limine-preview.sh)" | sed 's|/examples$||' \
-  > ~/.config/limine-preview/repo
-
-# 5. (opcional) los generadores de wallpapers
-install -m 755 scripts/make-wallpaper.sh ~/.local/bin/make-wallpaper
-install -m 755 scripts/prepare-wallpapers.sh ~/.local/bin/prepare-wallpapers
+pwd > ~/.config/boot-preview/repo
 ```
 
 ### Preparar un wallpaper con blur
@@ -216,65 +247,106 @@ make-wallpaper.sh IMAGEN [-o SALIDA] [--blur 0x30] [--dim 0.4]
 ```
 
 El `install.sh` hace todo eso y además deja un **shim** en
-`/usr/local/bin/limine-preview` para que `sudo limine-preview` también
+`/usr/local/bin/boot-preview loader` para que `sudo boot-preview loader` también
 funcione (ver [la trampa del `sudo`](#las-trampas)).
 
 ### Qué queda instalado y dónde
 
 | Path | Qué es |
 |---|---|
-| `~/.local/bin/limine-preview` | el script (o `~/.config/limine-preview/limine.conf` si preferís `$XDG_CONFIG_HOME`) |
-| `~/.config/limine-preview/limine.conf` | la **config de prueba** (la #1 de la tabla de arriba) |
-| `~/.config/limine-preview/wallpaper/rei.png` | el wallpaper de ejemplo (nítido) |
-| `~/.config/limine-preview/wallpaper/wallpaper.png` | **la imagen activa** (la que usan preview y `apply`) |
-| `~/.config/limine-preview/repo` | la ruta del repo (para las capturas en `previews/`) |
-| `~/.config/limine-preview/limine.conf` | la config de prueba |
-| `/usr/local/bin/limine-preview` | el shim para `sudo limine-preview` |
+| `~/.local/bin/boot-preview loader` | el script (o `~/.config/boot-preview/loader/limine.conf` si preferís `$XDG_CONFIG_HOME`) |
+| `~/.config/boot-preview/loader/limine.conf` | la **config de prueba** (la #1 de la tabla de arriba) |
+| `~/.config/boot-preview/loader/wallpaper/rei.png` | el wallpaper de ejemplo (nítido) |
+| `~/.config/boot-preview/loader/wallpaper/wallpaper.png` | **la imagen activa** (la que usan preview y `apply`) |
+| `~/.config/boot-preview/loader/repo` | la ruta del repo (para las capturas en `previews/`) |
+| `~/.config/boot-preview/loader/limine.conf` | la config de prueba |
+| `/usr/local/bin/boot-preview loader` | el shim para `sudo boot-preview loader` |
 
 Y **no** toca nada del sistema: ni `/boot/limine.conf`, ni
 `/etc/default/limine`, ni el initramfs.
 
 ## Uso
 
-La CLI es de **subcomandos**, no de flags:
+Un solo comando, dos herramientas:
+
+```bash
+boot-preview <loader|animation> [comando] [opciones]
+```
+
+| Herramienta | Qué previsualiza |
+|---|---|
+| **`loader`** | El menú de Limine (el bootloader) |
+| **`animation`** | El splash de Plymouth (la animación) |
+
+### `boot-preview loader` — el menú de Limine
 
 ```bash
 # VER
-limine-preview                # preview del menú (lo de siempre)
-limine-preview real           # con tu config real de /boot/limine.conf
-limine-preview wall foto.png  # preview con otro wallpaper (sin instalarlo)
+boot-preview loader                # preview del menú (lo de siempre)
+boot-preview loader real           # con tu config real de /boot/limine.conf
+boot-preview loader wall foto.png  # preview con otro wallpaper (sin instalarlo)
 
 # CAPTURAR
-limine-preview shot           # captura a PNG (van a <repo>/previews/)
-limine-preview shot mi.png    # captura a un archivo
+boot-preview loader shot           # captura a PNG (van a <repo>/previews/)
+boot-preview loader shot mi.png    # captura a un archivo
 
 # EDITAR
-limine-preview add foto.png   # pone una imagen como wallpaper del preview
-limine-preview edit           # abre la config del preview en tu editor
+boot-preview loader add foto.png   # pone una imagen como wallpaper del preview
+boot-preview loader edit           # abre la config del preview en tu editor
 
 # APLICAR AL LIMINE REAL
-limine-preview apply           # wallpaper + config visual
-limine-preview apply config    # solo la config visual
-limine-preview apply wallpaper # solo el wallpaper
+boot-preview loader apply           # wallpaper + config visual
+boot-preview loader apply config    # solo la config visual
+boot-preview loader apply wallpaper # solo el wallpaper
 
 # OTROS
-limine-preview wallpapers     # genera las dos versiones del wallpaper
-limine-preview setup          # instala dependencias y archivos
-limine-preview help           # la ayuda
+boot-preview loader wallpapers     # genera las dos versiones del wallpaper
+boot-preview loader help           # la ayuda
 ```
 
 En la ventana de QEMU: **flechas** para moverte, **ENTER** para bootear,
 **E** para editar la config, **F1** para el firmware, **ESC** para salir.
 **Ctrl+Q** cierra QEMU.
 
+### `boot-preview animation` — el splash de Plymouth
+
+```bash
+# ACCESO (una vez por sesión)
+boot-preview animation access       # da acceso de root al servidor X
+
+# VER
+boot-preview animation              # ventana con el splash
+boot-preview animation x11 15       # idem, con límite de tiempo
+
+# CAPTURAR
+boot-preview animation shot         # captura a PNG + contact sheet
+boot-preview animation shot mi.png  # captura a un archivo
+
+# TEMAS
+boot-preview animation sources      # los temas de Plymouth instalados
+boot-preview animation preview <tema>  # tema SOLO del preview
+boot-preview animation use <tema>      # tema del SISTEMA (-R)
+
+# STEAM
+boot-preview animation steam-source     # los videos de Steam (cuál está activo)
+boot-preview animation steam-convert    # convierte el video en tema
+boot-preview animation steam-apply      # convierte y lo aplica
+```
+
+### Instalación
+
+```bash
+boot-preview setup
+```
+
 ### El flujo completo
 
 ```bash
-limine-preview add ~/Pictures/foto.png   # 1. la imagen entra al preview
-limine-preview                           # 2. la mirás
-limine-preview edit                      # 3. ajustás la config (colores, margin)
-limine-preview                          # 4. la volvés a ver
-limine-preview apply                    # 5. al Limine real
+boot-preview loader add ~/Pictures/foto.png   # 1. la imagen entra al preview
+boot-preview loader                           # 2. la mirás
+boot-preview loader edit                      # 3. ajustás la config (colores, margin)
+boot-preview loader                          # 4. la volvés a ver
+boot-preview loader apply                    # 5. al Limine real
 sudo reboot                             # 6. a bootear
 ```
 
@@ -311,7 +383,7 @@ Es el caso normal. Las entradas del menú las regenera la herramienta, y el
 bloque de theming se pierde. Se recupera con:
 
 ```bash
-limine-preview apply
+boot-preview loader apply
 ```
 
 Verificado: partiendo de un conf sin theming, `apply` lo deja **idéntico byte
@@ -324,12 +396,12 @@ con un mensaje claro y te dice de dónde restaurar:
 ```bash
 sudo ls -1t /boot/limine.conf.bak-* /boot/limine.conf.old
 sudo cp /boot/limine.conf.bak-XXXX /boot/limine.conf
-limine-preview apply
+boot-preview loader apply
 ```
 
 **Caso 3 — el splash se perdió.**
-`limine-preview apply wallpaper` lo reescribe desde
-`~/.config/limine-preview/wallpaper/wallpaper.png`.
+`boot-preview loader apply wallpaper` lo reescribe desde
+`~/.config/boot-preview/loader/wallpaper/wallpaper.png`.
 
 ### Qué hace `apply`
 
@@ -348,7 +420,7 @@ Para lo raro están los flags, ocultos en la ayuda:
 
 | Opción | Qué hace |
 |---|---|
-| `-c, --config <ruta>` | Config de Limine a usar (default: `~/.config/limine-preview/limine.conf`) |
+| `-c, --config <ruta>` | Config de Limine a usar (default: `~/.config/boot-preview/loader/limine.conf`) |
 | `-w, --wallpaper <ruta>` | Wallpaper a incluir en el ISO |
 | `--resolution <WxH>` | Resolución de la interfaz (default: `1920x1080`) |
 | `--timeout <seg>` | Espera antes de capturar (default: 15) |
@@ -406,10 +478,10 @@ default y se iba de pantalla, mostrando un error de kernel en vez del menú.
 -cdrom x.iso
 ```
 
-### 4. `sudo limine-preview` → "command not found"
+### 4. `sudo boot-preview loader` → "command not found"
 
 `~/.local/bin` no está en el `secure_path` de sudo. Se resuelve con un shim
-en `/usr/local/bin/limine-preview` que, si lo invoca root, **baja al usuario
+en `/usr/local/bin/boot-preview loader` que, si lo invoca root, **baja al usuario
 que lo lanzó** — así QEMU no corre como root y los archivos del preview no
 quedan propiedad de root.
 
@@ -462,14 +534,14 @@ make-wallpaper examples/wallpaper/rei.png -o /tmp/blur.png \
 ```
 
 > Para el **upscale con IA** va primero [Upscayl](https://github.com/upscayl/upscayl)
-> (x4), y esa salida entra acá con `limine-preview add`. Este repo no baja
+> (x4), y esa salida entra acá con `boot-preview loader add`. Este repo no baja
 > modelos ni depende de Real-ESRGAN.
 
 Para ver cada una en el preview:
 
 ```bash
-limine-preview wall ~/.config/limine-preview/wallpaper/rei-blur.png
-limine-preview wall ~/.config/limine-preview/wallpaper/rei.png
+boot-preview loader wall ~/.config/boot-preview/loader/wallpaper/rei-blur.png
+boot-preview loader wall ~/.config/boot-preview/loader/wallpaper/rei.png
 ```
 
 Y la config de Limine, **sin margen ni degradado** (que es lo que se veía feo):
@@ -512,14 +584,14 @@ make-wallpaper.sh foto.png --res 1920x1080 --format qoi
 
    ```bash
    # en Upscayl: escala x4 con el modelo "RealESRGAN Anime"
-   limine-preview add ~/Pictures/foto-4x.png
+   boot-preview loader add ~/Pictures/foto-4x.png
    ```
 
    El truco: upscalear x4 y después **bajar** a la resolución final con
    Lanczos. El resultado tiene más detalle perceptible que el original, sin
    inventar textura nueva.
 
-   Para el blur, `make-wallpaper.sh` (o `limine-preview wallpapers`) lo aplica
+   Para el blur, `make-wallpaper.sh` (o `boot-preview loader wallpapers`) lo aplica
    sobre la imagen ya mejorada.
 
 ### ⚠️ El alpha de `term_background` va al revés
@@ -543,7 +615,7 @@ El wallpaper generado va a `/boot/splash.png` para el Limine real, o se
 prueba sin tocar nada con:
 
 ```bash
-limine-preview wall ~/Pictures/foto-borrosa.png
+boot-preview loader wall ~/Pictures/foto-borrosa.png
 ```
 
 ## Lo que se puede personalizar
@@ -586,7 +658,7 @@ por `/`).
 sudo cp /boot/limine.conf /boot/limine.conf.pre-theming
 
 # 2. El wallpaper (la version difuminada, ya con el blur aplicado)
-sudo cp ~/.config/limine-preview/wallpaper/rei-blur.png /boot/splash.png
+sudo cp ~/.config/boot-preview/loader/wallpaper/rei-blur.png /boot/splash.png
 
 # 3. El bloque de theming, antes de la primera entrada
 sudo nano /boot/limine.conf
@@ -604,7 +676,7 @@ No hace falta `limine-mkinitcpio`.
 | [`docs/FLUJO.md`](docs/FLUJO.md) | El flujo completo: de la config a la pantalla, y las 4 trampas en detalle |
 | [`docs/THEMING.md`](docs/THEMING.md) | Las 52 opciones, qué se puede personalizar, los límites y el código detrás |
 | [`docs/APLICAR.md`](docs/APLICAR.md) | Cómo aplicar el tema al `/etc/default/limine` real, con rollback |
-| [`examples/limine-preview.conf`](examples/limine-preview.conf) | La config de prueba, comentada |
+| [`examples/loader.conf`](examples/loader.conf) | La config de prueba, comentada |
 | [`examples/theming-rosepine.conf`](examples/theming-rosepine.conf) | El bloque de theming para pegar en `/etc/default/limine` |
 | [`scripts/make-wallpaper.sh`](scripts/make-wallpaper.sh) | Blur, velo y escalado del wallpaper (Limine no puede difuminar) |
 | [`scripts/prepare-wallpapers.sh`](scripts/prepare-wallpapers.sh) | Genera las dos versiones: la real y la ya difuminada |

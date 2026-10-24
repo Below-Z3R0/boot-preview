@@ -5,17 +5,17 @@ con rollback.
 
 ---
 
-## La forma corta: `limine-preview apply`
+## La forma corta: `boot-preview loader apply`
 
 ```bash
-limine-preview apply             # wallpaper + config visual
-limine-preview apply config      # solo la config visual
-limine-preview apply wallpaper   # solo el wallpaper
+boot-preview loader apply             # wallpaper + config visual
+boot-preview loader apply config      # solo la config visual
+boot-preview loader apply wallpaper   # solo el wallpaper
 ```
 
 Qué hace, en orden:
 
-1. Copia el wallpaper activo (`~/.config/limine-preview/wallpaper/wallpaper.png`)
+1. Copia el wallpaper activo (`~/.config/boot-preview/loader/wallpaper/wallpaper.png`)
    a `/boot/splash.png`.
 2. Hace un **backup** en `/boot/limine.conf.bak-YYYYMMDD-HHMMSS` (conserva los
    5 más recientes).
@@ -31,7 +31,7 @@ a byte idéntico** al original.
 **Si una actualización rompe el conf:**
 
 ```bash
-limine-preview apply            # si solo se perdió el theming
+boot-preview loader apply            # si solo se perdió el theming
 ```
 
 Si el conf desapareció entero, `apply` falla con un mensaje claro (no puede
@@ -40,7 +40,7 @@ reconstruir las entradas del menú) y hay que restaurar de un backup:
 ```bash
 sudo ls -1t /boot/limine.conf.bak-*
 sudo cp /boot/limine.conf.bak-XXXX /boot/limine.conf
-limine-preview apply
+boot-preview loader apply
 ```
 
 ---
@@ -52,7 +52,7 @@ si preferís no usar el comando.
 
 | # | Path | Qué es | ¿Se edita a mano? |
 |---|---|---|---|
-| **1** | `~/.config/limine-preview/limine.conf` | la config de prueba del preview | ✅ sí, es la que iterás |
+| **1** | `~/.config/boot-preview/loader/limine.conf` | la config de prueba del preview | ✅ sí, es la que iterás |
 | **2** | `/boot/limine.conf` | la config que Limine lee en el boot (100 KB) | ✅ **acá va el theming** |
 | **3** | `/etc/default/limine` | `ESP_PATH`, `KERNEL_CMDLINE` y `BOOT_ORDER` | ✅ pero **no** el theming |
 
@@ -125,12 +125,12 @@ hayas puesto a mano.
 
 ```bash
 # 1. Prepará la config con el theming que querés
-cp ~/.config/limine-preview/limine.conf ~/.config/limine-preview/limine.conf.mine
+cp ~/.config/boot-preview/loader/limine.conf ~/.config/boot-preview/loader/limine.conf.mine
 
 # 2. Poné el bloque de theming (abajo está el de Rosé Pine)
 
 # 3. Mirá cómo queda
-limine-preview shot /tmp/antes.png
+boot-preview loader shot /tmp/antes.png
 
 # 4. Iterá hasta que te guste
 ```
@@ -143,7 +143,7 @@ El `--shot` captura el framebuffer real. Cuando te guste, aplicá.
 
 ```bash
 # El wallpaper va en /boot (la partición FAT que Limine lee)
-sudo cp ~/.config/limine-preview/wallpaper/wallpaper.png /boot/splash.png
+sudo cp ~/.config/boot-preview/loader/wallpaper/wallpaper.png /boot/splash.png
 
 # Verificar
 ls -la /boot/splash.png
@@ -324,7 +324,7 @@ translúcido.
 
 ## Nota: por qué el preview no aplica los cambios
 
-A propósito, `limine-preview` **solo lee** `/boot/limine.conf` y **nunca**
+A propósito, `boot-preview loader` **solo lee** `/boot/limine.conf` y **nunca**
 escribe en `/boot`. El preview es para decidir; el aplicar es un acto
 deliberado con su propio paso de rollback.
 

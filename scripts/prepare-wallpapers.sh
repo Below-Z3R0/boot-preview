@@ -20,7 +20,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # El source por defecto es el wallpaper YA INSTALADO (que es donde vive
 # cuando el script se instala en ~/.local/bin, sin repo al lado). Si no
 # esta, se cae al del repo.
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boot-preview/loader"
 src="${CONFIG_DIR}/wallpaper/rei.png"
 [[ -f "$src" ]] || src="${REPO_DIR}/examples/wallpaper/rei.png"
 out_dir="${CONFIG_DIR}/wallpaper"
@@ -42,18 +42,25 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -f "$src" ]] || { echo "No existe: $src" >&2; exit 1; }
-command -v make-wallpaper >/dev/null 2>&1 || {
-  echo "FALTA: make-wallpaper (en ~/.local/bin). Corré scripts/install.sh" >&2; exit 1; }
+# make-wallpaper vive en ~/.local/lib/boot-preview/, fuera del PATH.
+# Se busca al lado de este script (instalado) o en el repo.
+MAKE_WALLPAPER=""
+for cand in "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/make-wallpaper.sh" \
+            "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../scripts/make-wallpaper.sh"; do
+  [[ -f "$cand" ]] && { MAKE_WALLPAPER="$cand"; break; }
+done
+[[ -n "$MAKE_WALLPAPER" ]] || {
+  echo "FALTA: make-wallpaper.sh (corré boot-preview setup)" >&2; exit 1; }
 
 mkdir -p "$out_dir"
 base="$(basename "${src%.*}")"
 
 echo "▸ La real (más detalle, sin blur)"
-make-wallpaper "$src" -o "$out_dir/$base.png" \
+bash "$MAKE_WALLPAPER" "$src" -o "$out_dir/$base.png" \
   --res "$res"
 
 echo "▸ La difuminada (ya viene con el blur aplicado)"
-make-wallpaper "$src" -o "$out_dir/$base-blur.png" \
+bash "$MAKE_WALLPAPER" "$src" -o "$out_dir/$base-blur.png" \
   --res "$res" --blur "$blur"
 
 printf '\n  %s\n  %s\n\n' \
@@ -67,10 +74,10 @@ cp -f "$out_dir/$base-blur.png" "$out_dir/wallpaper.png"
 
 cat <<EOF
   La difuminada quedo como la activa (wallpaper.png):
-      limine-preview                  → preview con ella
-      limine-preview apply            → wallpaper + config al Limine real
+      boot-preview loader                  → preview con ella
+      boot-preview loader apply            → wallpaper + config al Limine real
 
   Para volver a la nitida:
       cp $out_dir/$base.png $out_dir/wallpaper.png
-      limine-preview apply wallpaper
+      boot-preview loader apply wallpaper
 EOF
