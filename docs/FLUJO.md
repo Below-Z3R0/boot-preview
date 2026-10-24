@@ -38,7 +38,7 @@ y **no escribe ninguna**.
 ```bash
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
 config="$CONFIG_DIR/limine.conf"        # la config de prueba (la #1)
-wallpaper="$CONFIG_DIR/wallpaper/rei.png"
+wallpaper="$CONFIG_DIR/wallpaper/wallpaper.png"   # la ACTIVA
 ```
 
 Opciones: `-c/--config`, `-w/--wallpaper`, `--real`, `--resolution`,
@@ -210,7 +210,7 @@ formas Material 3 por `kitty-shapes`) y el login screen (sin recortar).
 | El menú no aparece, bootea | `timeout: 0` o `timeout: 5` | `timeout: no` |
 | "Could not read from CDROM" | se usó `-drive if=virtio` | `-cdrom` |
 | "failed to open kernel" | la entrada指针 a un kernel que no está en el ISO | es normal si autobootea; usá `timeout: no` |
-| El texto se ve diminuto | `term_font_scale` automático = 1×1 a 1920×1080 | `term_font_scale: 2x2` |
+| El texto se ve enorme | `term_font_scale` automático = 1×1 a 1920×1080 | `term_font_scale: 1` (es el valor que usamos: `2x2` se come la pantalla) |
 | `sudo limine-preview` → command not found | `~/.local/bin` no está en el `secure_path` | el shim en `/usr/local/bin/limine-preview` |
 | `cp: Permission denied` | se usó `sudo cp` para la config real | `sudo cat ... > archivo` |
 
@@ -236,7 +236,8 @@ capturar: tiempo de sobra para que arranque la VM con KVM.
 ~/.local/bin/limine-preview                    el script
 /usr/local/bin/limine-preview                   el shim para sudo
 ~/.config/limine-preview/limine.conf           la config de prueba
-~/.config/limine-preview/wallpaper/rei.png       el wallpaper
+~/.config/limine-preview/wallpaper/wallpaper.png la imagen activa
+~/.config/limine-preview/wallpaper/rei-blur.png  la difuminada
 /tmp/limine-preview/                           el ISO y el socket del monitor
 /tmp/limine-preview-real.*.conf                la config real (temporal)
 ```

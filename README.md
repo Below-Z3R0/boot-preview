@@ -24,7 +24,8 @@ examples/
 docs/
 ├── FLUJO.md               # el flujo completo, de la config a la pantalla
 ├── THEMING.md             # las 52 opciones y qué se puede personalizar
-└── APLICAR.md             # cómo aplicar el tema al Limine real
+├── APLICAR.md             # cómo aplicar el tema al Limine real
+└── RENDIMIENTO.md         # las mediciones y la comparativa Bun vs bash
 scripts/
 ├── install.sh              # deja todo andando
 ├── make-wallpaper.sh       # blur + velo + resolución, para Limine
@@ -163,9 +164,15 @@ install -m 755 examples/limine-preview.sh ~/.local/bin/limine-preview
 mkdir -p ~/.config/limine-preview
 install -m 644 examples/limine-preview.conf ~/.config/limine-preview/limine.conf
 
-# 4. El wallpaper
+# 4. El wallpaper (rei.png + la activa)
 mkdir -p ~/.config/limine-preview/wallpaper
 install -m 644 examples/wallpaper/rei.png ~/.config/limine-preview/wallpaper/rei.png
+cp ~/.config/limine-preview/wallpaper/rei.png \
+   ~/.config/limine-preview/wallpaper/wallpaper.png
+
+# 4b. La ruta del repo (para que `shot` sepa dónde guardar)
+dirname "$(readlink -f examples/limine-preview.sh)" | sed 's|/examples$||' \
+  > ~/.config/limine-preview/repo
 
 # 5. (opcional) los generadores de wallpapers
 install -m 755 scripts/make-wallpaper.sh ~/.local/bin/make-wallpaper
@@ -190,7 +197,10 @@ funcione (ver [la trampa del `sudo`](#las-trampas)).
 |---|---|
 | `~/.local/bin/limine-preview` | el script (o `~/.config/limine-preview/limine.conf` si preferís `$XDG_CONFIG_HOME`) |
 | `~/.config/limine-preview/limine.conf` | la **config de prueba** (la #1 de la tabla de arriba) |
-| `~/.config/limine-preview/wallpaper/rei.png` | el wallpaper de ejemplo |
+| `~/.config/limine-preview/wallpaper/rei.png` | el wallpaper de ejemplo (nítido) |
+| `~/.config/limine-preview/wallpaper/wallpaper.png` | **la imagen activa** (la que usan preview y `apply`) |
+| `~/.config/limine-preview/repo` | la ruta del repo (para las capturas en `previews/`) |
+| `~/.config/limine-preview/limine.conf` | la config de prueba |
 | `/usr/local/bin/limine-preview` | el shim para `sudo limine-preview` |
 
 Y **no** toca nada del sistema: ni `/boot/limine.conf`, ni
@@ -398,8 +408,9 @@ prepare-wallpapers
 
 | Fichero | Qué es |
 |---|---|
-| `rei.png` | **la real**: más detalle (Real-ESRGAN), sin blur |
-| `rei-blur.png` | **la difuminada**: la misma imagen, ya con el blur aplicado |
+| `rei.png` | la fuente, sin blur |
+| `rei-blur.png` | la misma, **ya con el blur aplicado** |
+| `wallpaper.png` | **la activa**: la que usan el preview y `apply`. `prepare-wallpapers` deja acá la difuminada |
 
 ### El pipeline de cada una
 
@@ -409,25 +420,28 @@ make-wallpaper IMAGEN -o SALIDA [opciones]
 
 | Orden | Qué hace |
 |---|---|
-| 1. `--esrgan anime` | upscale x4 con IA (**más detalle**: nitidez 4.617 → 7.656) |
-| 2. `--res 1920x1080` | baja a la resolución de la interfaz con Lanczos (**1:1, sin reescalado**) |
-| 3. `--blur 0x30` | **desenfoque gaussiano pre-renderizado** (solo en la versión difuminada) |
+| 1. `--res 1920x1080` | escala a la resolución de la interfaz con Lanczos, recortando al centro (**1:1, sin reescalado**) |
+| 2. `--blur 0x30` | **desenfoque gaussiano pre-renderizado** (solo en la versión difuminada) |
+| 3. `--dim 0.4` | velo uniforme encima (opcional) |
 
 ```bash
-# la real
-make-wallpaper examples/wallpaper/rei.png -o /tmp/real.png \
-  --esrgan anime --res 1920x1080
+# la real (nítida)
+make-wallpaper examples/wallpaper/rei.png -o /tmp/real.png --res 1920x1080
 
 # la difuminada: la imagen ya viene con el blur aplicado
 make-wallpaper examples/wallpaper/rei.png -o /tmp/blur.png \
-  --esrgan anime --res 1920x1080 --blur 0x30
+  --res 1920x1080 --blur 0x30
 ```
+
+> Para el **upscale con IA** va primero [Upscayl](https://github.com/upscayl/upscayl)
+> (x4), y esa salida entra acá con `limine-preview add`. Este repo no baja
+> modelos ni depende de Real-ESRGAN.
 
 Para ver cada una en el preview:
 
 ```bash
-limine-preview --wallpaper ~/.config/limine-preview/wallpaper/rei.png
-limine-preview --wallpaper ~/.config/limine-preview/wallpaper/rei-blur.png
+limine-preview wall ~/.config/limine-preview/wallpaper/rei-blur.png
+limine-preview wall ~/.config/limine-preview/wallpaper/rei.png
 ```
 
 Y la config de Limine, **sin margen ni degradado** (que es lo que se veía feo):
@@ -501,7 +515,7 @@ El wallpaper generado va a `/boot/splash.png` para el Limine real, o se
 prueba sin tocar nada con:
 
 ```bash
-limine-preview --wallpaper ~/Pictures/foto-borrosa.png
+limine-preview wall ~/Pictures/foto-borrosa.png
 ```
 
 ## Lo que se puede personalizar

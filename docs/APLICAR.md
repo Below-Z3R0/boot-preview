@@ -5,6 +5,49 @@ con rollback.
 
 ---
 
+## La forma corta: `limine-preview apply`
+
+```bash
+limine-preview apply             # wallpaper + config visual
+limine-preview apply config      # solo la config visual
+limine-preview apply wallpaper   # solo el wallpaper
+```
+
+Qué hace, en orden:
+
+1. Copia el wallpaper activo (`~/.config/limine-preview/wallpaper/wallpaper.png`)
+   a `/boot/splash.png`.
+2. Hace un **backup** en `/boot/limine.conf.bak-YYYYMMDD-HHMMSS` (conserva los
+   5 más recientes).
+3. Reemplaza el bloque de theming en `/boot/limine.conf`, **antes de la primera
+   entrada**. Las 174 entradas del menú no se tocan.
+4. Traduce el path del wallpaper: `boot():/wallpaper.png` (el del ISO) pasa a
+   `boot():/splash.png` (el del sistema real).
+
+Es **idempotente**: aplicarlo dos veces deja el mismo archivo. Está verificado
+con tests (ver el README) — desde un conf sin theming, `apply` lo deja **byte
+a byte idéntico** al original.
+
+**Si una actualización rompe el conf:**
+
+```bash
+limine-preview apply            # si solo se perdió el theming
+```
+
+Si el conf desapareció entero, `apply` falla con un mensaje claro (no puede
+reconstruir las entradas del menú) y hay que restaurar de un backup:
+
+```bash
+sudo ls -1t /boot/limine.conf.bak-*
+sudo cp /boot/limine.conf.bak-XXXX /boot/limine.conf
+limine-preview apply
+```
+
+---
+
+Lo que sigue es el detalle de **por qué** funciona así, y cómo hacerlo a mano
+si preferís no usar el comando.
+
 ## Las tres configs (antes de tocar nada)
 
 | # | Path | Qué es | ¿Se edita a mano? |
@@ -87,7 +130,7 @@ cp ~/.config/limine-preview/limine.conf ~/.config/limine-preview/limine.conf.min
 # 2. Poné el bloque de theming (abajo está el de Rosé Pine)
 
 # 3. Mirá cómo queda
-limine-preview --shot /tmp/antes.png
+limine-preview shot /tmp/antes.png
 
 # 4. Iterá hasta que te guste
 ```
@@ -100,7 +143,7 @@ El `--shot` captura el framebuffer real. Cuando te guste, aplicá.
 
 ```bash
 # El wallpaper va en /boot (la partición FAT que Limine lee)
-sudo cp examples/wallpaper/rei.png /boot/splash.png
+sudo cp ~/.config/limine-preview/wallpaper/wallpaper.png /boot/splash.png
 
 # Verificar
 ls -la /boot/splash.png
@@ -162,7 +205,7 @@ term_palette_bright: 3a3a52;eb6f92;f6c177;9ccfd8;31748f;c4a7e7;ebbcba;e0def4
 # Fuente (CP437 bitmap, NO TTF)
 term_font: boot():/font.F16
 term_font_size: 8x16
-term_font_scale: 2x2
+term_font_scale: 1
 
 # Interfaz
 interface_resolution: 1920x1080
@@ -173,7 +216,7 @@ interface_help_colour_bright: e0def4
 ```
 
 > **La fuente**: si no tenés un `.F16`, **sacá las 4 líneas de `term_font`** y
-> dejá solo `term_font_scale: 2x2`. Limine usa su font built-in (CP437 8x16) y
+> dejá solo `term_font_scale: 1`. Limine usa su font built-in (CP437 8x16) y
 > el scale la agranda. Para una font custom:
 >
 > ```bash

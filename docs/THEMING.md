@@ -174,7 +174,7 @@ el set completo de la terminal.
 ```ini
 term_font: boot():/font.F16
 term_font_size: 8x16
-term_font_scale: 2x2
+term_font_scale: 1
 term_font_spacing: 1
 ```
 
@@ -183,7 +183,8 @@ de Limine (16 bytes por glifo, 256 glifos). Se convierte con
 `limine-font-converter` (AUR).
 
 El `term_font_scale` automático depende de la resolución: a 1920×1080 es
-`1x1` → el texto se ve diminuto. Subilo a `2x2`.
+`1x1` (o `1`, que es lo mismo) es el valor que usa este repo: a 1920x1080
+`2x2` duplica ancho y alto y el menú se come la pantalla.
 
 ### La interfaz
 
