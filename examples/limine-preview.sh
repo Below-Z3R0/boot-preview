@@ -36,7 +36,11 @@ fi
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/limine-preview"
 DEFAULT_CONF="$CONFIG_DIR/limine.conf"
 # El wallpaper por defecto es el del repo. Cualquier otro se pasa con `wall`.
-DEFAULT_WALLPAPER="$CONFIG_DIR/wallpaper/rei.png"
+# La imagen ACTIVA: una sola para el preview y para el Limine real. La fija
+# `prepare-wallpapers` (deja la difuminada) o `add`. Antes apuntaba a rei.png,
+# que era la nitida, mientras que `apply` copiaba wallpaper.png (la
+# difuminada): el preview y el sistema real mostraban cosas distintas.
+DEFAULT_WALLPAPER="$CONFIG_DIR/wallpaper/wallpaper.png"
 
 # La ruta del repo, la guarda install.sh. Se usa para las capturas (previews/).
 REPO_DIR=""

@@ -130,6 +130,16 @@ else
   ok "$PREVIEW_DIR/wallpaper/rei.png"
 fi
 
+# La ACTIVA: la que usan el preview y `apply`. Si no existe, se copia la
+# nitida para que todo funcione de entrada; la difuminada la genera
+# `limine-preview wallpapers`.
+if [[ -f "$PREVIEW_DIR/wallpaper/wallpaper.png" ]]; then
+  ok "$PREVIEW_DIR/wallpaper/wallpaper.png (la activa, ya estaba)"
+else
+  cp "$PREVIEW_DIR/wallpaper/rei.png" "$PREVIEW_DIR/wallpaper/wallpaper.png"
+  ok "$PREVIEW_DIR/wallpaper/wallpaper.png (la activa, copiada de rei.png)"
+fi
+
 # ── 5. La ruta del repo y la carpeta de previews ───────────────────────────
 step "5/5  El repo y la carpeta de previews"
 
@@ -168,7 +178,7 @@ cat <<EOF
   Aplicar al Limine real (wallpaper + config visual):
       limine-preview apply
 
-  Generar las dos versiones del wallpaper (real y difuminada):
+  Generar las dos versiones del wallpaper (la difuminada queda activa):
       limine-preview wallpapers
 
   En la ventana de QEMU: flechas, ENTER para bootear, E para editar la

@@ -59,13 +59,18 @@ make-wallpaper "$src" -o "$out_dir/$base-blur.png" \
 printf '\n  %s\n  %s\n\n' \
   "$out_dir/$base.png" \
   "$out_dir/$base-blur.png"
+
+# La ACTIVA es la difuminada: es la que el usuario quiere en el menu, y es la
+# unica que usan tanto el preview como `apply` (antes el preview miraba
+# rei.png y `apply` copiaba wallpaper.png, asi que mostraban cosas distintas).
+cp -f "$out_dir/$base-blur.png" "$out_dir/wallpaper.png"
+
 cat <<EOF
-  Para ver la difuminada en el preview:
-      limine-preview wall $out_dir/$base-blur.png
+  La difuminada quedo como la activa (wallpaper.png):
+      limine-preview                  → preview con ella
+      limine-preview apply            → wallpaper + config al Limine real
 
-  Para ver la real:
-      limine-preview wall $out_dir/$base.png
-
-  Para el Limine real, la que quieras va a /boot/splash.png:
-      sudo cp $out_dir/$base-blur.png /boot/splash.png
+  Para volver a la nitida:
+      cp $out_dir/$base.png $out_dir/wallpaper.png
+      limine-preview apply wallpaper
 EOF
