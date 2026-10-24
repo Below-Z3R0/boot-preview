@@ -331,18 +331,115 @@ No hay IDE ni GUI oficial. Lo que existe:
 | `showplymouth.sh` (repo adi1090x) | script de 20 líneas: `plymouthd; --show-splash; sleep N; --quit` |
 | **este repo** | `plymouth-preview` + `shell` + `x11` |
 
-### Modo X11 (sin VM)
+### Modo X11 (sin VM) — la forma cómoda de desarrollar
 
 ```bash
 plymouth-preview x11 [segundos]
 ```
 
-Copia el tema a `/run/plymouth/themes/` (que Plymouth mira **antes** que
-`/usr/share`) y lanza `plymouthd` con el renderer X11. Es instantáneo: sin
-initramfs, sin QEMU.
+**Abre una ventana GTK fullscreen con el splash, sobre tu escritorio.** Sin
+VM, sin initramfs, sin QEMU. Es el plugin `x11.so` que ya trae Plymouth
+(Arch lo compila en el paquete `plymouth`: no hay nada que instalar ni
+compilar).
 
-> No se pudo verificar en el entorno del agente (sin `DISPLAY`). Queda
-> implementado; si falla, el log está en `/tmp/plymouth-x11.log`.
+Plymouth elige renderer en este orden (`ply-renderer.c`):
+
+```c
+{ PLY_RENDERER_TYPE_X11,          "renderers/x11.so"          },
+{ PLY_RENDERER_TYPE_DRM,          "renderers/drm.so"          },
+{ PLY_RENDERER_TYPE_SIMPLEDRM,    "renderers/drm.so"          },
+{ PLY_RENDERER_TYPE_FRAME_BUFFER, "renderers/frame-buffer.so" },
+```
+
+Con `PLY_RENDERER_TYPE_AUTO` (el default) prueba **X11 primero**. El source
+del plugin (`plugins/renderers/x11/plugin.c`) usa GTK3:
+
+```c
+gdk_set_allowed_backends ("x11");
+if (!gtk_init_check (0, NULL))
+    return NULL;
+```
+
+#### Requisito: root necesita acceso al servidor X
+
+`plymouthd` **exige root** (`plymouthd must be run as root user`), y root
+solo puede abrir una ventana si el servidor X le da acceso. En Wayland el
+Xwayland normalmente tiene control de acceso:
+
+```
+Authorization required, but no authorization protocol specified
+```
+
+El renderer `x11.so` no se puede crear (`renderer backend could not be
+created`) y Plymouth cae a DRM, que el compositor ya tiene tomado → pantalla
+en negro, sin error visible.
+
+**Solución (una vez por sesión):**
+
+```bash
+sudo xhost +SI:localuser:root
+```
+
+`xorg-xhost` está en el repo `extra`. Sin eso el comando avisa y sale.
+
+#### Control en caliente desde otra terminal
+
+Con la ventana abierta:
+
+```bash
+sudo plymouth --reload        # recarga el tema (tras editar un PNG)
+sudo plymouth --show-splash   # vuelve a mostrar / relanza la animación
+sudo plymouth --update=hola   # cambia el mensaje
+sudo plymouth --quit          # cierra
+```
+
+Es el ciclo de desarrollo real: editás el PNG, `--reload`, y lo ves sin
+reiniciar nada.
+
+#### Qué toca el comando (y qué NO)
+
+| Archivo | Qué pasa |
+|---|---|
+| `/run/plymouth/themes/<tema>/` | copia del tema (Plymouth lo mira antes que `/usr/share`) |
+| `/run/plymouth/themes/<tema>/<tema>.plymouth` | se reescribe `ImageDir` y `ScriptFile` para que apunten a `/run` |
+| `/etc/plymouth/plymouthd.conf` | **no se toca**: se monta una config propia sobre `/etc/plymouth` en un namespace de mounts privado (`unshare -m`) |
+
+El sistema queda intacto. Al salir, `/run/plymouth/themes/<tema>` se borra.
+
+#### El plugin `script`, no `two-step`
+
+Los temas generados desde un video de Steam usan el plugin **`script`**, no
+`two-step`:
+
+- `two-step` ata la animación al **final del boot** (`UseEndAnimation`): sin
+  un boot real nunca arranca. Solo se ve el throbber.
+- `script` es un **loop libre**. Plymouth llama a la función de refresh cada
+  `1/refresh_rate` segundos y ahí se avanza un frame:
+
+```javascript
+frames = [ "animation-000.png", "animation-001.png", ... ];
+
+sprite = Sprite(Image("animation-000.png"));
+sprite.SetZ(0);
+sprite.SetOpacity(1);
+
+frame = 0;
+
+fun Refresh ()
+{
+  frame = (frame + 1) % 105;
+  sprite.SetImage(Image(frames[frame]));
+}
+
+Plymouth.SetRefreshFunction(Refresh);
+```
+
+**Un solo sprite** al que se le cambia la imagen, no un sprite por frame: con
+105 frames a 1280x720 la diferencia de memoria es enorme.
+
+> El intérprete del plugin `script` **no tiene `sleep`** ni bucles con
+> espera: el avance de frame se hace en el callback de refresh, no en un
+> `while`.
 
 ## Por qué la VM tarda
 

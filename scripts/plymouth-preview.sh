@@ -6,7 +6,8 @@
 # mismo binario y el mismo renderer (DRM) que usa la máquina al arrancar.
 #
 #   plymouth-preview                     # ventana con el splash (VM)
-#   plymouth-preview x11                 # splash en una ventana X11 (SIN VM)
+#   plymouth-preview x11 [segundos]      # splash en una ventana X11 (SIN VM)
+#                                        # 0 o vacío = queda abierto
 #   plymouth-preview shell               # shell interactiva dentro de la VM
 #   plymouth-preview shot [f.png]        # captura el splash y sale
 #   plymouth-preview sources             # temas de Plymouth instalados
@@ -337,46 +338,115 @@ cmd_use() {
 # Es la misma técnica que el paquete `plymouth-x11` de Debian/Fedora, que en
 # Arch no está empaquetado pero cuyo renderer sí viene con Plymouth.
 cmd_x11() {
-  local segundos="${1:-8}"
-  if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-    warn "No hay entorno gráfico (DISPLAY y WAYLAND_DISPLAY vacíos)."
-    exit 1
-  fi
-
+  local segundos="${1:-0}"
   local theme
   theme="$(preview_theme)"
   [[ -d "$THEMES_DIR/$theme" ]] || { echo "No existe el tema: $theme" >&2; exit 1; }
 
+  if [[ -z "${DISPLAY:-}" ]]; then
+    warn "No hay DISPLAY. X11 necesita un servidor gráfico."
+    say "Si estas en Wayland puro, export DISPLAY=:1 (Xwayland)."
+    exit 1
+  fi
+
   step "Plymouth en X11 con el tema '$theme'"
 
-  # Plymouth busca el tema en /run/plymouth/themes antes que en
-  # /usr/share/plymouth/themes. Copiarlo ahí permite usar cualquier tema sin
-  # tocar el del sistema.
+  # plymouthd EXIGE root ("plymouthd must be run as root user"), y root solo
+  # puede abrir una ventana si el servidor X le da acceso. En Wayland el
+  # Xwayland suele tener control de acceso y responde "Authorization
+  # required": el renderer x11.so no se puede crear y Plymouth cae a DRM.
+  #
+  # Se comprueba ANTES de intentar nada, para no fallar en silencio.
+  if ! sudo --preserve-env=DISPLAY,XAUTHORITY xdotool getdisplaygeometry >/dev/null 2>&1; then
+    warn "root no puede abrir una ventana en $DISPLAY (control de acceso de X)."
+    echo
+    say "Solucion (una vez por sesion):"
+    say "  sudo xhost +SI:localuser:root"
+    say
+    say "Eso le da a root acceso al servidor X. Plymouth dibuja en una"
+    say "ventana GTK sobre tu escritorio, con el tema real."
+    exit 1
+  fi
+
+  # El tema va a /run/plymouth/themes, que Plymouth mira ANTES que /usr/share.
   sudo mkdir -p /run/plymouth/themes
   sudo rm -rf "/run/plymouth/themes/$theme"
   sudo cp -r "$THEMES_DIR/$theme" /run/plymouth/themes/
 
-  # Si ya hay un plymouthd (el del boot), se para.
+  # /etc/plymouth/plymouthd.conf del sistema dice Theme=cachyos-bootanimation
+  # y gana sobre /run. Se monta una config propia sobre /etc/plymouth en un
+  # namespace de mounts privado: el sistema NO se toca.
+  local etc_dir
+  etc_dir="$(mktemp -d /tmp/plymouth-preview-etc.XXXXXX)"
+  cat > "$etc_dir/plymouthd.conf" << EOF
+[Daemon]
+Theme=$theme
+ShowDelay=0.5
+DeviceTimeout=10
+EOF
+  chmod 644 "$etc_dir/plymouthd.conf"
+
+  # El .plymouth del tema en /run debe apuntar a SI MISMO (ImageDir y
+  # ScriptFile), si no Plymouth lee los frames del directorio equivocado.
+  local ply_file="/run/plymouth/themes/$theme/$theme.plymouth"
+  if [[ -f "$ply_file" ]]; then
+    sudo sed -i "s#^ImageDir=.*#ImageDir=/run/plymouth/themes/$theme#" "$ply_file"
+    sudo sed -i "s#^ScriptFile=.*#ScriptFile=/run/plymouth/themes/$theme/script.script#" "$ply_file"
+  fi
+
   sudo plymouth --quit 2>/dev/null || true
+  sleep 1
 
-  sudo plymouthd --no-daemon --debug --mode=boot \
-    --debug-file=/tmp/plymouth-x11.log >/dev/null 2>&1 &
-  local pid=$!
-  sleep 2
-  sudo plymouth --show-splash 2>/dev/null
-
-  say "Mostrando $segundos s. Ctrl+C para cortar."
-  local i=0
-  while [[ $i -lt "$segundos" ]]; do
-    sleep 1
-    i=$((i+1))
-    sudo plymouth --update="Iniciando $i" 2>/dev/null || true
+  # CLAVE: sudo NO preserva DISPLAY, y sin el el renderer x11.so no puede
+  # abrir la ventana GTK.
+  local envs="DISPLAY,XAUTHORITY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,TERM"
+  # env NO acepta "A,B,C" como lista: hay que pasar cada variable por
+  # separado. Ademas el valor viene del entorno del usuario, no de root.
+  local env_args=()
+  local v
+  for v in DISPLAY XAUTHORITY WAYLAND_DISPLAY XDG_RUNTIME_DIR TERM; do
+    [[ -n "${!v:-}" ]] && env_args+=("$v=${!v}")
   done
+  sudo unshare -m --propagation private \
+    bash -c "mount --bind '$etc_dir' /etc/plymouth && exec env ${env_args[*]} plymouthd --no-daemon --debug --debug-file=/tmp/plymouth-x11.log --mode=boot" &
+  local pid=$!
+  sleep 3
+
+  sudo --preserve-env="$envs" plymouth --show-splash 2>/dev/null
+
+  if ! kill -0 "$pid" 2>/dev/null; then
+    warn "plymouthd termino. Log:"
+    tail -20 /tmp/plymouth-x11.log 2>/dev/null | sed 's/^/    /'
+    rm -rf "$etc_dir"
+    exit 1
+  fi
+
+  say ""
+  say "Ventana abierta con el tema '$theme'."
+  say "Desde OTRA terminal:"
+  say "  sudo plymouth --reload        # recargar tras editar un PNG"
+  say "  sudo plymouth --show-splash   # relanzar la animacion"
+  say "  sudo plymouth --quit          # cerrar"
+  say ""
+  say "Ctrl+C para cerrar."
+
+  if [[ "$segundos" == "0" ]]; then
+    while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+  else
+    local i=0
+    while [[ $i -lt "$segundos" ]] && kill -0 "$pid" 2>/dev/null; do
+      sleep 1
+      i=$((i+1))
+      sudo --preserve-env="$envs" plymouth --update="Iniciando $i" 2>/dev/null || true
+    done
+  fi
 
   sudo plymouth --quit 2>/dev/null || true
   kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
   sudo rm -rf "/run/plymouth/themes/$theme"
-  ok "Listo ($(grep -c 'renderer' /tmp/plymouth-x11.log 2>/dev/null || echo 0) líneas de log en /tmp/plymouth-x11.log)"
+  rm -rf "$etc_dir"
+  ok "Cerrado"
 }
 
 # ── Shell interactiva dentro de la VM ─────────────────────────────────────
@@ -639,23 +709,52 @@ convert_video_to_theme() {
   base="$THEMES_DIR/cachyos-bootanimation"
   [[ -d "$base" ]] && cp "$base"/throbber-*.png "$tmp"/ 2>/dev/null || true
 
+  # Plugin "script", no "two-step".
+  #
+  # two-step ata la animacion al final del boot (UseEndAnimation): sin un
+  # boot real nunca arranca. "script" es un loop libre: Plymouth llama a la
+  # funcion de refresh cada 1/refresh_rate y ahi se avanza un frame.
+  #
+  # Un solo sprite al que se le cambia la imagen: muchisima menos memoria
+  # que un sprite por frame (105 frames a 1280x720).
+  frames=("$tmp"/animation-*.png)
+  {
+    echo "# Animacion generada desde $(basename "$video")."
+    echo "# Plugin \"script\" de Plymouth: loop libre, no atado al boot real."
+    echo ""
+    echo "frames = ["
+    for f in "$tmp"/animation-*.png; do
+      echo "  \"$(basename "$f")\","
+    done
+    echo "];"
+    echo ""
+    echo "Window.SetBackgroundTopColor(0, 0, 0);"
+    echo "Window.SetBackgroundBottomColor(0, 0, 0);"
+    echo ""
+    echo "sprite = Sprite(Image(\"animation-000.png\"));"
+    echo "sprite.SetZ(0);"
+    echo "sprite.SetOpacity(1);"
+    echo ""
+    echo "frame = 0;"
+    echo ""
+    echo "fun Refresh ()"
+    echo "{"
+    echo "  frame = (frame + 1) % ${#frames[@]};"
+    echo "  sprite.SetImage(Image(frames[frame]));"
+    echo "}"
+    echo ""
+    echo "Plymouth.SetRefreshFunction(Refresh);"
+  } > "$tmp/script.script"
+
   cat > "$tmp/$name.plymouth" <<EOF
 [Plymouth Theme]
 Name=$name
 Description=Generado desde $(basename "$video")
-ModuleName=two-step
+ModuleName=script
 
-[two-step]
+[script]
 ImageDir=$dest
-HorizontalAlignment=.5
-VerticalAlignment=.5
-Transition=none
-TransitionDuration=0.0
-BackgroundStartColor=0x000000
-BackgroundEndColor=0x000000
-ProgressBarBackgroundColor=0x1a1a1a
-ProgressBarForegroundColor=0x6ba8d9
-MessageBelowAnimation=false
+ScriptFile=$dest/script.script
 EOF
 
   step "Instalando en $dest"
@@ -664,6 +763,7 @@ EOF
   sudo cp "$tmp"/animation-*.png "$dest"/
   sudo cp "$tmp"/throbber-*.png "$dest"/ 2>/dev/null || true
   sudo cp "$tmp/$name.plymouth" "$dest"/
+  sudo cp "$tmp/script.script" "$dest"/
   rm -rf "$tmp"
 
   ok "Tema '$name' instalado ($(du -sh "$dest" 2>/dev/null | cut -f1))"
@@ -731,7 +831,7 @@ shift || true
 
 case "$cmd" in
   view|"")       cmd_view ;;
-  x11)           cmd_x11 "${1:-8}" ;;
+  x11)           cmd_x11 "${1:-0}" ;;
   shell)         cmd_shell ;;
   shot)          cmd_shot "${1:-}" ;;
   sources)       cmd_sources ;;
