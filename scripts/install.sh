@@ -225,10 +225,10 @@ step "4/4  Estado"
 state_file="$CONFIG_DIR/state.json"
 mkdir -p "$CONFIG_DIR"
 
-python3 - "$state_file" "$WHAT" << 'PY'
+python3 - "$state_file" "$WHAT" "$REPO_DIR" << 'PY'
 import json, os, subprocess, sys, datetime
 
-state_file, what = sys.argv[1], sys.argv[2]
+state_file, what, repo_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 
 def version(pkg):
     try:
@@ -255,7 +255,19 @@ if os.path.isfile(state_file):
     except Exception:
         state = {}
 
-state["version"] = state.get("version", "0.1.0")
+# La version: el VERSION del paquete, o el tag de git, o "desconocida".
+version = ""
+version_file = os.path.join(repo_dir, "VERSION")
+if os.path.isfile(version_file):
+    version = open(version_file).read().strip()
+if not version:
+    try:
+        out = subprocess.run(["git", "-C", repo_dir, "describe", "--tags", "--always"],
+                             capture_output=True, text=True)
+        version = out.stdout.strip()
+    except Exception:
+        version = ""
+state["version"] = version or state.get("version", "desconocida")
 state["updated_at"] = datetime.date.today().isoformat()
 state["components"] = sorted(set(state.get("components", []) + (
     ["loader", "animation"] if what == "all" else [what])))

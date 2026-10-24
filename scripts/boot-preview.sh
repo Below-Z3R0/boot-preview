@@ -87,6 +87,14 @@ cmd_verify() {
 
   step "Verificando la instalación"
 
+  # La version instalada (la que dice state.json).
+  if [[ -f "$CONFIG_DIR/state.json" ]]; then
+    local inst_version
+    inst_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version","?"))' "$CONFIG_DIR/state.json" 2>/dev/null || echo "?")"
+    echo "  Versión instalada: $inst_version"
+    echo
+  fi
+
   echo "  Módulos"
   if [[ -x "$BIN_DIR/boot-preview" ]]; then
     printf '    \033[38;2;125;207;216m✓\033[0m %-22s %s\n' "boot-preview" "$BIN_DIR/boot-preview"
