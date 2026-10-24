@@ -5,7 +5,9 @@
 # dentro de una VM de QEMU con KVM. No es un reproductor de imágenes: es el
 # mismo binario y el mismo renderer (DRM) que usa la máquina al arrancar.
 #
-#   plymouth-preview                     # ventana con el splash
+#   plymouth-preview                     # ventana con el splash (VM)
+#   plymouth-preview x11                 # splash en una ventana X11 (SIN VM)
+#   plymouth-preview shell               # shell interactiva dentro de la VM
 #   plymouth-preview shot [f.png]        # captura el splash y sale
 #   plymouth-preview sources             # temas de Plymouth instalados
 #   plymouth-preview preview <tema>      # tema SOLO del preview
@@ -60,7 +62,7 @@ use_real_home() {
 # síntoma es que `plymouth-preview` sale sin hacer nada.
 need_root() {
   if [[ "$(id -u)" != "0" ]]; then
-    exec sudo --preserve-env=HOME,XDG_CACHE_HOME,XDG_CONFIG_HOME,DISPLAY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,XAUTHORITY,TERM \
+    exec sudo --preserve-env=HOME,XDG_CACHE_HOME,XDG_CONFIG_HOME,DISPLAY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,XAUTHORITY,TERM,STEAM_FPS,STEAM_RES \
       "$0" "$@"
   fi
 }
@@ -327,6 +329,90 @@ cmd_use() {
   say "Para volver al de CachyOS: plymouth-preview use cachyos-bootanimation"
 }
 
+# ── Modo X11 (sin VM) ─────────────────────────────────────────────────────
+# Plymouth trae el renderer `renderers/x11.so` compilado con GTK3. Plymouth
+# elige ese renderer cuando hay DISPLAY y no hay DRM libre, así que se puede
+# ver el splash en una ventana normal: sin VM, sin initramfs, sin reboots.
+#
+# Es la misma técnica que el paquete `plymouth-x11` de Debian/Fedora, que en
+# Arch no está empaquetado pero cuyo renderer sí viene con Plymouth.
+cmd_x11() {
+  local segundos="${1:-8}"
+  if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+    warn "No hay entorno gráfico (DISPLAY y WAYLAND_DISPLAY vacíos)."
+    exit 1
+  fi
+
+  local theme
+  theme="$(preview_theme)"
+  [[ -d "$THEMES_DIR/$theme" ]] || { echo "No existe el tema: $theme" >&2; exit 1; }
+
+  step "Plymouth en X11 con el tema '$theme'"
+
+  # Plymouth busca el tema en /run/plymouth/themes antes que en
+  # /usr/share/plymouth/themes. Copiarlo ahí permite usar cualquier tema sin
+  # tocar el del sistema.
+  sudo mkdir -p /run/plymouth/themes
+  sudo rm -rf "/run/plymouth/themes/$theme"
+  sudo cp -r "$THEMES_DIR/$theme" /run/plymouth/themes/
+
+  # Si ya hay un plymouthd (el del boot), se para.
+  sudo plymouth --quit 2>/dev/null || true
+
+  sudo plymouthd --no-daemon --debug --mode=boot \
+    --debug-file=/tmp/plymouth-x11.log >/dev/null 2>&1 &
+  local pid=$!
+  sleep 2
+  sudo plymouth --show-splash 2>/dev/null
+
+  say "Mostrando $segundos s. Ctrl+C para cortar."
+  local i=0
+  while [[ $i -lt "$segundos" ]]; do
+    sleep 1
+    i=$((i+1))
+    sudo plymouth --update="Iniciando $i" 2>/dev/null || true
+  done
+
+  sudo plymouth --quit 2>/dev/null || true
+  kill "$pid" 2>/dev/null || true
+  sudo rm -rf "/run/plymouth/themes/$theme"
+  ok "Listo ($(grep -c 'renderer' /tmp/plymouth-x11.log 2>/dev/null || echo 0) líneas de log en /tmp/plymouth-x11.log)"
+}
+
+# ── Shell interactiva dentro de la VM ─────────────────────────────────────
+# Abre la consola serie de la VM en la terminal: ahí se puede escribir
+# `plymouth --show-splash`, `plymouth --update=...`, `plymouth --quit`, etc.
+# Es la shell de emergencia del initramfs (trae busybox).
+cmd_shell() {
+  local initrd kpath mon
+  initrd="$(build_initramfs | tail -1)"
+  kpath="$(kernel_path)"
+  mon="/tmp/plymouth-preview-mon.$$"
+
+  step "Shell interactiva de la VM"
+  say "Comandos útiles dentro:"
+  say "  plymouth --show-splash      # relanzar la animación"
+  say "  plymouth --update=hola      # cambiar el mensaje"
+  say "  plymouth --quit             # cerrar el splash"
+  say "  ls /run/plymouth            # estado del daemon"
+  say "  reboot -f                   # apagar la VM"
+  echo
+  say "Salir de QEMU: Ctrl+A, después X"
+
+  # -serial stdio: la consola de la VM va a esta terminal (interactiva).
+  # -display none: no hace falta ventana; el splash no se ve, pero se puede
+  # pedir un screendump desde el monitor... o usar x11 para verlo.
+  qemu-system-x86_64 \
+    -enable-kvm -m 512 -cpu host \
+    -kernel "$kpath" -initrd "$initrd" \
+    -append "root=/dev/nonexistent splash quiet console=ttyS0" \
+    -vga std -display none \
+    -serial stdio \
+    -monitor "unix:$mon,server,nowait" \
+    -no-reboot
+  rm -f "$mon"
+}
+
 # ── Steam: qué videos hay ─────────────────────────────────────────────────
 steam_dirs() {
   local d real vistos=""
@@ -343,7 +429,52 @@ steam_dirs() {
   done
 }
 
+# La animación de inicio ACTIVA que eligió el usuario en Steam.
+#
+# Steam guarda la selección en ~/.steam/steam/config/config.vdf:
+#   "StartupMovie" { "MovieID" "31391441102" "LocalPath" "/communityitemscache/..." }
+#
+# Las que se compran en la tienda viven en
+# config/communityitemscache/startupmovies/<item_id>_<hash>.webm.
+steam_selected_movie() {
+  local cfg f
+  for cfg in "$HOME/.steam/steam/config/config.vdf" \
+             "$HOME/.local/share/Steam/config/config.vdf"; do
+    [[ -f "$cfg" ]] || continue
+    f="$(awk '
+      /"StartupMovie"/ { en = 1 }
+      en && /"LocalPath"/ {
+        sub(/.*"LocalPath"[ \t]*"/, "")
+        sub(/".*/, "")
+        print
+        exit
+      }
+    ' "$cfg" 2>/dev/null)"
+    # OJO: el LocalPath de Steam es "/communityitemscache/..." pero el
+    # archivo vive en "<steam>/config/communityitemscache/...": falta el
+    # segmento "config".
+    local base cand
+    for base in "$HOME/.local/share/Steam" "$HOME/.steam/steam"; do
+      for cand in "$base/config$f" "$base$f"; do
+        if [[ -n "$f" && -f "$cand" ]]; then
+          printf '%s\n' "$cand"
+          return 0
+        fi
+      done
+    done
+  done
+  return 1
+}
+
 steam_video() {
+  # 1) La que el usuario eligió en Steam (comprada en la tienda o del Deck).
+  local sel
+  sel="$(steam_selected_movie 2>/dev/null || true)"
+  if [[ -n "$sel" && -f "$sel" ]]; then
+    printf '%s\n' "$sel"; return 0
+  fi
+
+  # 2) Si no hay selección, la de Big Picture del cliente.
   local dir video modelo=""
   dir="$(steam_dirs | head -1)"
   [[ -n "$dir" ]] || { echo "No encuentro el directorio de movies de Steam" >&2; return 1; }
@@ -368,29 +499,119 @@ steam_video() {
 }
 
 cmd_steam_source() {
-  local dir actual
+  local actual
   actual="$(steam_video 2>/dev/null || true)"
-  step "Videos de animación de Steam"
-  while IFS= read -r dir; do
-    [[ -d "$dir" ]] || continue
-    # Directorios sin .webm (p. ej. legacycompat) no aportan nada.
-    compgen -G "$dir/*.webm" >/dev/null || continue
-    say "$dir"
-    for f in "$dir"/*.webm; do
-      [[ -f "$f" ]] || continue
-      local info
-      info="$(ffprobe -v error -select_streams v:0 \
-        -show_entries stream=width,height -show_entries format=duration \
-        -of csv=p=0 "$f" 2>/dev/null | tr '\n' ' ')"
-      if [[ "$f" == "$actual" ]]; then
-        printf '  \033[38;2;125;207;216m* %-42s\033[0m (%s) ← el activo\n' "$(basename "$f")" "$info"
-      else
-        printf '    %-42s (%s)\n' "$(basename "$f")" "$info"
-      fi
-    done
-  done < <(steam_dirs)
+
+  step "Animaciones de inicio de Steam"
+
+  # Las compradas en la tienda: Steam las guarda en
+  # config/communityitemscache/startupmovies/ y el nombre real está en el
+  # JSON "GetStartupMovies" de localconfig.vdf.
+  python3 - "$HOME" "$actual" <<'PY'
+import json, os, re, sys, subprocess
+
+home, actual = sys.argv[1], sys.argv[2]
+
+# 1) El JSON con los nombres
+nombres = {}
+for base in (f"{home}/.steam/steam", f"{home}/.local/share/Steam"):
+    lc = f"{base}/userdata"
+    if not os.path.isdir(lc):
+        continue
+    for uid in os.listdir(lc):
+        f = f"{lc}/{uid}/config/localconfig.vdf"
+        if not os.path.isfile(f):
+            continue
+        txt = open(f, encoding="utf-8", errors="replace").read()
+        m = re.search(r'"GetStartupMovies"\s+"(.*?)"\s*$', txt, re.M)
+        if not m:
+            continue
+        raw = m.group(1).replace('\\"', '"').replace("\t", "\t")
+        try:
+            for item in json.loads(raw):
+                iid = item.get("communityitemid")
+                if iid:
+                    nombres[iid] = item.get("name") or item.get("item_title") or iid
+        except Exception:
+            pass
+
+# 2) Los archivos descargados
+vistos = set()
+print("  Compradas en la tienda:")
+for base in (f"{home}/.local/share/Steam", f"{home}/.steam/steam"):
+    d = f"{base}/config/communityitemscache/startupmovies"
+    if not os.path.isdir(d):
+        continue
+    for f in sorted(os.listdir(d)):
+        if not f.endswith(".webm"):
+            continue
+        ruta = f"{d}/{f}"
+        if os.path.realpath(ruta) in vistos:
+            continue
+        vistos.add(os.path.realpath(ruta))
+        iid = f.split("_")[0]
+        nombre = nombres.get(iid, iid)
+        mark = "  \033[38;2;125;207;216m*\033[0m" if os.path.realpath(ruta) == os.path.realpath(actual) else "   "
+        if mark != "   ":
+            print(f"{mark} {nombre:32s} ({iid})  ← la activa")
+        else:
+            print(f"{mark} {nombre:32s} ({iid})")
+
+# 3) Las que trae el cliente
+print()
+print("  Del cliente (Steam Big Picture / Deck):")
+for base in (f"{home}/.local/share/Steam", f"{home}/.steam/steam"):
+    d = f"{base}/steamui/movies"
+    if not os.path.isdir(d):
+        continue
+    for f in sorted(os.listdir(d)):
+        if not f.endswith(".webm") or "startup" not in f:
+            continue
+        ruta = f"{d}/{f}"
+        if os.path.realpath(ruta) in vistos:
+            continue
+        vistos.add(os.path.realpath(ruta))
+        mark = "  \033[38;2;125;207;216m*\033[0m" if os.path.realpath(ruta) == os.path.realpath(actual) else "   "
+        sufijo = "  ← la activa" if mark != "   " else ""
+        print(f"{mark} {f:44s}{sufijo}")
+    break
+PY
+
   echo
-  say "El activo es el que Steam usa para la animación de entrada a Big Picture."
+  say "Activa: ${actual:-ninguna}"
+  say "Steam la guarda en config/communityitemscache/startupmovies/"
+}
+
+# Nombre legible de una animación de la tienda.
+# Los archivos se llaman <item_id>_<hash>.webm; el nombre real ("Elden Ring
+# Ranni") está en el JSON GetStartupMovies de localconfig.vdf.
+steam_item_name() {
+  local iid="$1"
+  python3 - "$HOME" "$iid" <<'PY' 2>/dev/null
+import json, os, re, sys
+home, iid = sys.argv[1], sys.argv[2]
+for base in (f"{home}/.steam/steam", f"{home}/.local/share/Steam"):
+    lc = f"{base}/userdata"
+    if not os.path.isdir(lc):
+        continue
+    for uid in os.listdir(lc):
+        f = f"{lc}/{uid}/config/localconfig.vdf"
+        if not os.path.isfile(f):
+            continue
+        txt = open(f, encoding="utf-8", errors="replace").read()
+        m = re.search(r'"GetStartupMovies"\s+"(.*?)"\s*$', txt, re.M)
+        if not m:
+            continue
+        raw = m.group(1).replace('\\"', '"')
+        try:
+            for item in json.loads(raw):
+                if item.get("communityitemid") == iid:
+                    print(item.get("name") or item.get("item_title") or "")
+                    sys.exit(0)
+        except Exception:
+            pass
+print("")
+PY
 }
 
 # ── Steam: convertir ──────────────────────────────────────────────────────
@@ -467,9 +688,22 @@ cmd_steam_convert() {
 
   fps="${STEAM_FPS:-30}"
   res="${STEAM_RES:-1920x1080}"
-  # El video ya se llama steam_os_startup: no duplicar el prefijo.
-  local base_name
-  base_name="$(basename "$video" .webm | tr '_' '-')"
+  # Nombre del tema.
+  # Las compradas se llaman <item_id>_<hash>.webm: se usa el nombre real
+  # ("Elden Ring Ranni" -> steam-elden-ring-ranni).
+  local base_name item_id legible
+  base_name="$(basename "$video" .webm)"
+  if [[ "$base_name" =~ ^([0-9]+)_[0-9a-f]+$ ]]; then
+    item_id="${BASH_REMATCH[1]}"
+    legible="$(steam_item_name "$item_id")"
+    if [[ -n "$legible" ]]; then
+      base_name="$legible"
+    else
+      base_name="item-$item_id"
+    fi
+  fi
+  # A slug: minúsculas, espacios y símbolos a guiones.
+  base_name="$(printf '%s' "$base_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-\+//; s/-\+$//')"
   case "$base_name" in
     steam*) name="$base_name" ;;
     *)      name="steam-$base_name" ;;
@@ -488,7 +722,7 @@ cmd_steam_convert() {
 
 # ── Dispatch ──────────────────────────────────────────────────────────────
 case "${1:-view}" in
-  view|shot|build|use|steam-convert|steam-apply|"") need_root "$@" ;;
+  view|shot|build|use|x11|shell|steam-convert|steam-apply|"") need_root "$@" ;;
 esac
 use_real_home
 
@@ -497,6 +731,8 @@ shift || true
 
 case "$cmd" in
   view|"")       cmd_view ;;
+  x11)           cmd_x11 "${1:-8}" ;;
+  shell)         cmd_shell ;;
   shot)          cmd_shot "${1:-}" ;;
   sources)       cmd_sources ;;
   preview)       cmd_preview "${1:-}" ;;

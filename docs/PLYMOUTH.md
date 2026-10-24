@@ -247,6 +247,128 @@ El `-R` regenera el initramfs. **Sin `-R` no se aplica** en el próximo boot.
 
 ---
 
+## Las animaciones compradas en la tienda de Steam
+
+Las que se compran con puntos de Steam **no** están en `steamui/movies/`.
+Están en:
+
+```
+~/.local/share/Steam/config/communityitemscache/startupmovies/
+    31391441102_88576f998883aafe4ad3821ac8c0cfa4f11d7c84.webm   ← Elden Ring Ranni
+    25578860771_4dfeecc35e628ed9160fb19b9aa9a04bd291f2db.webm   ← Ghost Machine
+```
+
+El nombre del archivo es `<item_id>_<hash>.webm`. **El nombre real está en
+otro lado**:
+
+```bash
+~/.steam/steam/userdata/<steamid>/config/localconfig.vdf
+```
+
+con la clave `"GetStartupMovies"`, que es un JSON con `name`, `appid`,
+`movie_webm_local_path`, etc.
+
+**Cuál está activa** se guarda en:
+
+```bash
+~/.steam/steam/config/config.vdf
+```
+
+```
+"StartupMovie"
+{
+    "MovieID"     "31391441102"
+    "LocalPath"   "/communityitemscache/startupmovies/31391441102_88576....webm"
+}
+```
+
+> Ojo: `LocalPath` **no** incluye el segmento `config/`. La ruta real es
+> `<steam>/config/communityitemscache/...`.
+
+`plymouth-preview steam-source` hace todo ese parseo y muestra:
+
+```
+▸ Animaciones de inicio de Steam
+  Compradas en la tienda:
+    Ghost Machine                    (25578860771)
+  * Elden Ring Ranni                 (31391441102)  ← la activa
+
+  Del cliente (Steam Big Picture / Deck):
+    bigpicture_startup.webm
+    deck_startup.webm
+    ...
+```
+
+## Comandos dentro de la VM
+
+```bash
+plymouth-preview shell
+```
+
+Abre la consola serie de la VM en la terminal (busybox). Ahí:
+
+| Comando | Qué hace |
+|---|---|
+| `plymouth --show-splash` | relanzar la animación |
+| `plymouth --update=hola` | cambiar el mensaje |
+| `plymouth --reload` | recargar el tema |
+| `plymouth --quit` | cerrar el splash |
+| `ls /run/plymouth` | estado del daemon |
+| `reboot -f` | apagar la VM |
+
+Salir de QEMU: **Ctrl+A**, después **X**.
+
+## Herramientas de desarrollo
+
+No hay IDE ni GUI oficial. Lo que existe:
+
+| Herramienta | Qué hace |
+|---|---|
+| **renderer `x11.so`** | Plymouth ya lo trae (`/usr/lib/plymouth/renderers/`). Con `DISPLAY` seteado dibuja en una ventana X11: **sin VM** |
+| `plymouth-x11` (Debian/Fedora) | el binario que usa ese renderer. **No está empaquetado en Arch**, pero el renderer sí |
+| `plymouthd --debug --debug-file=...` | log de todo lo que hace el daemon |
+| `plymouth --reload` | recarga el tema sin reiniciar el daemon (parcial) |
+| `showplymouth.sh` (repo adi1090x) | script de 20 líneas: `plymouthd; --show-splash; sleep N; --quit` |
+| **este repo** | `plymouth-preview` + `shell` + `x11` |
+
+### Modo X11 (sin VM)
+
+```bash
+plymouth-preview x11 [segundos]
+```
+
+Copia el tema a `/run/plymouth/themes/` (que Plymouth mira **antes** que
+`/usr/share`) y lanza `plymouthd` con el renderer X11. Es instantáneo: sin
+initramfs, sin QEMU.
+
+> No se pudo verificar en el entorno del agente (sin `DISPLAY`). Queda
+> implementado; si falla, el log está en `/tmp/plymouth-x11.log`.
+
+## Por qué la VM tarda
+
+| Causa | Peso |
+|---|---|
+| initramfs con el tema completo | **45-133 MB** (105-210 PNG) |
+| `mkinitcpio` al regenerar | ~6 s |
+| Arranque de QEMU + kernel | ~8 s |
+| Muestreo del framebuffer | 24 s (máx) |
+
+**Cómo acelerarlo**:
+
+```bash
+STEAM_FPS=15 STEAM_RES=1280x720 plymouth-preview steam-convert
+```
+
+| fps | res | frames | tamaño |
+|---|---|---|---|
+| 30 | 1920x1080 | 210 | **133 MB** |
+| 15 | 1280x720 | 105 | **45 MB** |
+
+El tema se cachea en `~/.cache/plymouth-preview/<tema>-<kernel>-<hash>.img`,
+así que solo se regenera la primera vez o cuando cambia el tema.
+
+---
+
 ## Dónde conseguir temas
 
 | Fuente | Qué hay |
