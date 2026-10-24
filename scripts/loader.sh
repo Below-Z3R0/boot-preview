@@ -494,9 +494,7 @@ if [[ -f /usr/share/edk2/x64/OVMF_CODE.4m.fd ]]; then
     -monitor "unix:$monitor_sock,server,nowait"
     -boot d
   )
-  uefi=1
 else
-  uefi=0
   echo "AVISO: sin OVMF, arranca con SeaBIOS y el menu puede salir en modo texto" >&2
 fi
 
