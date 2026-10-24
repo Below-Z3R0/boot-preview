@@ -688,11 +688,16 @@ No hace falta `limine-mkinitcpio`.
 
 | Documento | Qué cubre |
 |---|---|
-| [`docs/FLUJO.md`](docs/FLUJO.md) | El flujo completo: de la config a la pantalla, y las 4 trampas en detalle |
+| [`docs/FLUJO.md`](docs/FLUJO.md) | El flujo completo del menú: de la config a la pantalla, y las 4 trampas en detalle |
 | [`docs/THEMING.md`](docs/THEMING.md) | Las 52 opciones, qué se puede personalizar, los límites y el código detrás |
 | [`docs/APLICAR.md`](docs/APLICAR.md) | Cómo aplicar el tema al `/etc/default/limine` real, con rollback |
+| [`docs/PLYMOUTH.md`](docs/PLYMOUTH.md) | El splash de Plymouth: el renderer X11, el plugin `script`, y cómo convertir un video de Steam en tema |
+| [`docs/RENDIMIENTO.md`](docs/RENDIMIENTO.md) | Las mediciones y por qué los scripts siguen en bash (y no en Bun) |
 | [`examples/loader.conf`](examples/loader.conf) | La config de prueba, comentada |
 | [`examples/theming-rosepine.conf`](examples/theming-rosepine.conf) | El bloque de theming para pegar en `/etc/default/limine` |
+| [`scripts/boot-preview.sh`](scripts/boot-preview.sh) | El dispatcher: `boot-preview <loader\|animation>` |
+| [`scripts/loader.sh`](scripts/loader.sh) | El módulo de Limine |
+| [`scripts/animation.sh`](scripts/animation.sh) | El módulo de Plymouth |
 | [`scripts/make-wallpaper.sh`](scripts/make-wallpaper.sh) | Blur, velo y escalado del wallpaper (Limine no puede difuminar) |
 | [`scripts/prepare-wallpapers.sh`](scripts/prepare-wallpapers.sh) | Genera las dos versiones: la real y la ya difuminada |
 
