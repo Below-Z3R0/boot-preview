@@ -4,7 +4,8 @@
 #   ./scripts/install.sh
 #
 # Que hace, en orden:
-#   1. Verifica/instala las dependencias (qemu, xorriso, OVMF, imagemagick)
+#   1. Verifica/instala las dependencias de Limine (qemu, xorriso, OVMF,
+#      imagemagick) y de Plymouth (ffmpeg, xdotool, xhost)
 #   2. Instala los scripts en ~/.local/bin/
 #   3. Crea ~/.config/limine-preview/ con la config de prueba y el wallpaper
 #   4. Guarda la ruta del repo (para que el CLI sepa dónde está)
@@ -83,11 +84,29 @@ ok "$BIN_DIR/prepare-wallpapers"
 install -m 755 "$REPO_DIR/scripts/plymouth-preview.sh" "$BIN_DIR/plymouth-preview"
 ok "$BIN_DIR/plymouth-preview"
 
-# mkinitcpio es necesario para el preview de Plymouth.
-if command -v mkinitcpio >/dev/null 2>&1; then
-  ok "mkinitcpio presente (preview de Plymouth)"
+# ── Dependencias de Plymouth ───────────────────────────────────────────────
+# ffmpeg: convierte los videos de Steam en temas (extrae los frames).
+# xdotool: encuentra la ventana de Plymouth para capturarla.
+# xhost:   da acceso de root al servidor X (sin eso el splash no aparece).
+ply_pkgs=()
+command -v ffmpeg  >/dev/null 2>&1 || ply_pkgs+=(ffmpeg)
+command -v xdotool >/dev/null 2>&1 || ply_pkgs+=(xdotool)
+command -v xhost   >/dev/null 2>&1 || ply_pkgs+=(xorg-xhost)
+
+if [[ ${#ply_pkgs[@]} -gt 0 ]]; then
+  say "Faltan (Plymouth): ${ply_pkgs[*]}"
+  sudo pacman -S --needed --noconfirm "${ply_pkgs[@]}" >/dev/null
+  ok "instalados: ${ply_pkgs[*]}"
 else
-  warn "sin mkinitcpio: el preview de Plymouth no va a funcionar"
+  ok "ffmpeg, xdotool y xhost ya estaban"
+fi
+
+# El preview de Plymouth necesita el renderer X11: Plymouth ya lo trae
+# compilado (paquete plymouth), no hay nada que instalar.
+if [[ -f /usr/lib/plymouth/renderers/x11.so ]]; then
+  ok "renderer X11 de Plymouth presente (sin VM)"
+else
+  warn "sin renderers/x11.so: el preview de Plymouth no va a funcionar"
 fi
 
 # Un shim en /usr/local/bin para que `sudo limine-preview` funcione:
@@ -98,7 +117,7 @@ if [[ -w /usr/local/bin ]] || sudo -n true 2>/dev/null; then
 # Wrapper de limine-preview para poder correrlo con `sudo`.
 # `sudo limine-preview` falla con "command not found" porque ~/.local/bin
 # no esta en el secure_path de sudo. Si lo invoca root, baja al usuario que
-# lo lanzo: QEMU no debe correr como root.
+# lo lanzo: QEMU no debe correr como root (no tiene acceso al socket grafico).
 set -euo pipefail
 script="${HOME}/.local/bin/limine-preview"
 if [[ ! -x "$script" ]]; then
@@ -193,4 +212,9 @@ cat <<EOF
 
   En la ventana de QEMU: flechas, ENTER para bootear, E para editar la
   config, F1 para el firmware, ESC para salir. Ctrl+Q cierra QEMU.
+
+  Plymouth (el splash de arranque, sin VM):
+      plymouth-preview access     # una vez por sesion: acceso de root al X
+      plymouth-preview            # ventana con el splash
+      plymouth-preview shot       # captura a PNG
 EOF

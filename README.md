@@ -108,21 +108,24 @@ monitor, no por VNC.
 Lo que se ve **después** de elegir CachyOS. No es Limine: es otro sistema.
 
 ```bash
-plymouth-preview                  # ventana con el splash
-plymouth-preview shot [archivo]   # captura
-plymouth-preview themes           # los temas instalados
-plymouth-preview sources          # los videos de Steam (cuál está activo)
-plymouth-preview from-steam       # convierte el video de Steam en tema
-plymouth-preview use <tema>       # aplica un tema al sistema (-R)
+plymouth-preview access               # una vez por sesión: acceso de root al X
+plymouth-preview                      # ventana con el splash
+plymouth-preview shot [archivo]       # captura + contact sheet
+plymouth-preview sources              # los temas de Plymouth instalados
+plymouth-preview preview <tema>       # tema SOLO del preview
+plymouth-preview use <tema>           # aplica un tema al sistema (-R)
+plymouth-preview steam-source         # los videos de Steam (cuál está activo)
+plymouth-preview steam-convert <vid>  # convierte el video de Steam en tema
 ```
 
-Genera un initramfs con `mkinitcpio` (hook `plymouth`) y lo arranca en QEMU
-con `-kernel`/`-initrd`, sin ISO. El splash lo dibuja Plymouth de verdad.
+Usa el **Plymouth oficial del sistema** con el renderer X11: dibuja en una
+ventana GTK sobre tu escritorio. Sin VM, sin initramfs, sin QEMU.
 
-> **Limitación**: el initramfs no tiene rootfs, así que cuando falla el
-> mount cae a la shell de emergencia y el splash se va. `shot` muestrea el
-> framebuffer y se queda con el mejor frame. Para que quede fijo hace falta
-> un rootfs real. Detalle en [docs/PLYMOUTH.md](docs/PLYMOUTH.md).
+> **Requisito**: `plymouthd` exige root, y root necesita acceso al servidor
+> X (`xhost +SI:localuser:root`). Sin eso el splash no aparece y no hay
+> error. `plymouth-preview access` lo resuelve.
+
+Detalle en [docs/PLYMOUTH.md](docs/PLYMOUTH.md).
 
 **Vicinae no es esto**: es un launcher de escritorio.
 
