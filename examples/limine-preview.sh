@@ -219,6 +219,15 @@ case "$command" in
 
     # ── La config visual ──
     if [[ $need_config == 1 ]]; then
+      # Red de seguridad: el conf real tiene 174 entradas del menu. Si algo
+      # sale mal al reescribirlo, se puede volver con este backup.
+      backup="/boot/limine.conf.bak-$(date +%Y%m%d-%H%M%S)"
+      sudo cp /boot/limine.conf "$backup" 2>/dev/null && \
+        echo "  ✓ backup      ->  $backup"
+      # /boot es la ESP: no conviene llenarla de backups. Se conservan los 5
+      # mas recientes.
+      sudo bash -c 'ls -1t /boot/limine.conf.bak-* 2>/dev/null | tail -n +6 | xargs -r rm -f'
+
       # Se toma el bloque de theming de la config del PREVIEW (que es la
       # que edita el usuario con `limine-preview edit`) y se inyecta en el
       # conf real.
@@ -229,6 +238,20 @@ preview_path = sys.argv[1]
 real_path = "/boot/limine.conf"
 
 preview = open(preview_path, encoding="utf-8", errors="replace").read()
+
+# Si una actualizacion borro el conf entero, `apply` no puede reconstruir las
+# entradas del menu (no las tiene). Fallar con un mensaje claro es mejor que
+# un traceback.
+import os
+if not os.path.exists(real_path):
+    print("  ! No existe /boot/limine.conf")
+    print("    apply solo reescribe el bloque de theming; las entradas del")
+    print("    menu no se pueden reconstruir desde aca.")
+    print("    Restauralo desde un backup:")
+    print("      sudo ls -1t /boot/limine.conf.bak-* /boot/limine.conf.old")
+    print("      sudo cp /boot/limine.conf.bak-XXXX /boot/limine.conf")
+    sys.exit(1)
+
 real = open(real_path, encoding="utf-8", errors="replace").read()
 
 # Las opciones de theming que se llevan al Limine real.
@@ -257,13 +280,23 @@ if not block:
     sys.exit(1)
 
 # Se quitan las del conf real (y el bloque anterior, si lo hubiera).
+#
+# La cabecera y los comentarios del bloque se borran SIEMPRE, aunque hayan
+# quedado huerfanos (por ejemplo si una actualizacion borro las opciones y
+# dejo los comentarios): si no, al reinsertar el bloque se duplican.
+OWN_COMMENTS = (
+    "# ── Limine theming (b3l0wz3r0-os) ──",
+    "# Aplicado por limine-preview apply",
+    "# y volvé a aplicar para cambiarlo",
+)
+
 lines = []
 skipping = False
 for line in real.splitlines():
     m = re.match(r"^\s*([a-z_0-9]+)\s*:", line)
     if m and m.group(1) in THEME_OPTS:
         continue
-    if line.strip() == "# ── Limine theming (b3l0wz3r0-os) ──":
+    if any(line.strip().startswith(c) for c in OWN_COMMENTS):
         skipping = True
         continue
     if skipping:
@@ -463,7 +496,10 @@ fi
 if [[ "$gui" == "1" ]]; then
   qemu_args+=(-display gtk)
 else
-  qemu_args+=(-display none -vnc :0)
+  # Sin GUI no hace falta ningun display: el screendump va por el monitor.
+  # Antes se agregaba `-vnc :0`, que abria el puerto 5900 sin que nadie lo
+  # usara (y chocaba si habia otra VM).
+  qemu_args+=(-display none)
 fi
 
 qemu-system-x86_64 "${qemu_args[@]}" &

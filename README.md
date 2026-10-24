@@ -65,6 +65,41 @@ Los assets van aparte, en la partición FAT que Limine lee:
 | `/boot/splash.png` | el wallpaper del boot |
 | `/boot/font.F16` | la fuente custom (CP437 bitmap) |
 
+## La VM del preview
+
+Es deliberadamente mínima: no bootea nada, solo muestra el menú.
+
+| Aspecto | Valor |
+|---|---|
+| **Tamaño del ISO** | **4.9 MB** |
+| Contenido | 4 binarios de Limine + `limine.conf` + el wallpaper |
+| Kernel / initramfs / rootfs | **ninguno** |
+| Memoria | 512 MB |
+| Aceleración | KVM (`/dev/kvm`) |
+| Firmware | OVMF (UEFI), igual que la máquina real |
+| Arranque | ~2.9 s |
+
+El ISO son literalmente los cuatro binarios que instala Limine
+(`BOOTX64.EFI` 377 KB, `limine-bios-cd.bin` 26 KB, `limine-bios.sys` 334 KB,
+`limine-uefi-cd.bin` 3.1 MB) más el conf y el PNG. El de 3.1 MB es la imagen
+UEFI completa de Limine: no se puede recortar sin recompilar el bootloader.
+
+**Flags de QEMU, medidos** (4 corridas cada variante, mismo ISO):
+
+| Configuración | Media |
+|---|---|
+| **Actual** (`-enable-kvm -m 512 -display none`) | **2.80-2.91 s** |
+| + `-cpu host` | 3.56 s ❌ |
+| + `-cpu host -m 256` | 3.39 s ❌ |
+| + `-machine q35` | 2.98 s |
+
+`-cpu host` **empeora** el arranque: le pasa a OVMF todas las features de la
+CPU real, y las tiene que inicializar. Para un bootloader no aporta nada.
+
+Se sacó `-vnc :0` del modo sin GUI: abría el puerto 5900 sin que nadie lo
+usara (y chocaba si había otra VM). El screendump va por el socket del
+monitor, no por VNC.
+
 ## Rendimiento
 
 Medido en esta máquina (8 núcleos, QEMU con KVM):
@@ -206,6 +241,57 @@ sudo reboot                             # 6. a bootear
 ```
 
 `apply` es **idempotente**: aplicarlo dos veces no duplica nada en el conf.
+
+### ¿Puede `apply` romper la config?
+
+No. Está verificado con tests sobre el conf real (957 líneas, 174 entradas):
+
+| Test | Resultado |
+|---|---|
+| Las entradas del menú quedan intactas | 933 líneas no-theming **idénticas** |
+| Idempotente (aplicar 2 veces) | md5 **igual** |
+| No duplica el bloque | 1 `wallpaper:`, 1 cabecera |
+| Se preservan las 174 entradas | 174 → 174 |
+| Conf sin theming (simula `limine-update`) → `apply` | vuelve **byte a byte idéntico** |
+| Comentarios huérfanos → `apply` | no duplica, vuelve al original |
+
+`apply` **solo** toca:
+- las opciones de theming en `/boot/limine.conf` (las 14 de la lista)
+- `/boot/splash.png`
+
+Todo lo demás (entradas del kernel, snapshots, `timeout`, `default_entry`) no
+se toca.
+
+Además hace un **backup automático** en `/boot/limine.conf.bak-YYYYMMDD-HHMMSS`
+antes de escribir (se conservan los 5 más recientes; la ESP no conviene
+llenarla).
+
+### Si una actualización rompe el conf
+
+**Caso 1 — `limine-update` regenera el conf y se pierde el theming.**
+Es el caso normal. Las entradas del menú las regenera la herramienta, y el
+bloque de theming se pierde. Se recupera con:
+
+```bash
+limine-preview apply
+```
+
+Verificado: partiendo de un conf sin theming, `apply` lo deja **idéntico byte
+a byte** al original.
+
+**Caso 2 — el conf desapareció entero.**
+`apply` **no** puede reconstruir las entradas del menú: no las tiene. Falla
+con un mensaje claro y te dice de dónde restaurar:
+
+```bash
+sudo ls -1t /boot/limine.conf.bak-* /boot/limine.conf.old
+sudo cp /boot/limine.conf.bak-XXXX /boot/limine.conf
+limine-preview apply
+```
+
+**Caso 3 — el splash se perdió.**
+`limine-preview apply wallpaper` lo reescribe desde
+`~/.config/limine-preview/wallpaper/wallpaper.png`.
 
 ### Qué hace `apply`
 
