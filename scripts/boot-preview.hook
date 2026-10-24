@@ -1,0 +1,18 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = plymouth
+Target = limine
+Target = qemu-desktop
+Target = libisoburn
+Target = imagemagick
+Target = socat
+Target = ffmpeg
+Target = xdotool
+Target = xorg-xhost
+
+[Action]
+Description = Avisar que boot-preview puede necesitar re-verificación
+When = PostTransaction
+NeedsTargets
+Exec = /usr/local/lib/boot-preview/boot-preview-hook.sh

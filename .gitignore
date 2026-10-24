@@ -13,3 +13,6 @@ limine-preview.local.conf
 # Sistema
 .DS_Store
 Thumbs.db
+
+# El paquete descargable (se genera con scripts/bundle.sh)
+dist/

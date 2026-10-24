@@ -39,6 +39,8 @@ fi
 
 say()  { printf '  %s\n' "$*"; }
 step() { printf '\n\033[1;38;2;235;194;186m▸\033[0m \033[1m%s\033[0m\n' "$*"; }
+ok()   { printf '  \033[38;2;125;207;216m✓\033[0m %s\n' "$*"; }
+warn() { printf '  \033[38;2;246;153;150m! %s\033[0m\n' "$*"; }
 
 usage() {
   cat <<'EOF'
@@ -61,6 +63,7 @@ INSTALACIÓN Y MANTENIMIENTO
   install [loader|animation]  Instala el tool (o solo una parte)
   verify                       Verifica que todo esté en su sitio
   update                       Trae la última versión
+  hooks [install|uninstall]   El hook de pacman que avisa tras actualizar
 
 AYUDA DE CADA UNO
   boot-preview loader --help
@@ -267,6 +270,59 @@ cmd_update() {
   say "Los módulos se actualizan con: boot-preview install"
 }
 
+# ── Hook de pacman ──────────────────────────────────────────────────────────
+# Avisa cuando Plymouth, Limine o alguna dependencia de los previews se
+# actualiza. Solo informa: no toca nada.
+#
+# El hook lee los targets por stdin (NeedsTargets) y avisa si alguno es de
+# los que le importan.
+cmd_hooks() {
+  local action="${1:-install}"
+  local hook_dir="/etc/pacman.d/hooks"
+  local hook_file="$hook_dir/boot-preview.hook"
+  local hook_src="${REPO_DIR:+$REPO_DIR/}scripts/boot-preview-hook.sh"
+  local hook_dst="/usr/local/lib/boot-preview/boot-preview-hook.sh"
+
+  case "$action" in
+    install)
+      step "Instalando el hook de pacman"
+      [[ -f "$hook_src" ]] || {
+        echo "No encuentro boot-preview-hook.sh" >&2
+        exit 1
+      }
+      sudo mkdir -p "$(dirname "$hook_dst")" "$hook_dir"
+      sudo install -m 755 "$hook_src" "$hook_dst"
+      ok "$hook_dst"
+
+      sudo cp "$REPO_DIR/scripts/boot-preview.hook" "$hook_file"
+      ok "$hook_file"
+
+      echo
+      say "A partir de ahora, cuando se actualice Plymouth, Limine o una"
+      say "dependencia, pacman va a avisar que conviene revalidar."
+      ;;
+    uninstall|remove)
+      step "Quitando el hook de pacman"
+      sudo rm -f "$hook_file" "$hook_dst"
+      ok "eliminados"
+      ;;
+    status)
+      step "Estado del hook de pacman"
+      if [[ -f "$hook_file" ]]; then
+        ok "$hook_file"
+        say "disparadores:"
+        grep -E "^Target" "$hook_file" | sed 's/^/    /'
+      else
+        say "no instalado (boot-preview hooks install)"
+      fi
+      ;;
+    *)
+      echo "Uso: boot-preview hooks [install|uninstall|status]" >&2
+      exit 1
+      ;;
+  esac
+}
+
 # ── Dispatch ────────────────────────────────────────────────────────────────
 case "${1:-}" in
   loader)
@@ -312,6 +368,11 @@ case "${1:-}" in
 
   update)
     cmd_update
+    ;;
+
+  hooks)
+    shift
+    cmd_hooks "${1:-install}"
     ;;
 
   help|-h|--help)
