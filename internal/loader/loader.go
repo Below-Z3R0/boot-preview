@@ -58,6 +58,11 @@ var ownComments = []string{
 	"# ── Limine theming (b3l0wz3r0-os) ──",
 	"# Aplicado por boot-preview loader apply",
 	"# y volvé a aplicar para cambiarlo",
+
+	// El tool se llamaba limine-preview antes: los configs que hay
+	// instalados en /boot tienen el comentario viejo, y si no se
+	// recognizes el bloque anterior se queda pegado al reinyectar.
+	"# Aplicado por limine-preview apply",
 }
 
 // options son las opciones del comando.

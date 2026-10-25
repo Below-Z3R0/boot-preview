@@ -107,7 +107,7 @@ func Run(paths cli.Paths) error {
 	if data, err := os.ReadFile(themeFile); err == nil {
 		row(true, "animation/theme", strings.TrimSpace(string(data)))
 	} else {
-		row(false, "animation/theme", "sin tema (usa el del sistema)")
+		rowOptional("animation/theme", "sin tema propio (usa el del sistema)")
 	}
 
 	// ── Cambios desde la instalación ──
@@ -183,6 +183,7 @@ func readState(path string) (state, bool) {
 const (
 	colorOK   = "\033[38;2;125;207;216m"
 	colorWarn = "\033[38;2;246;153;150m"
+	colorDim  = "\033[38;2;146;136;158m"
 	colorOff  = "\033[0m"
 )
 
@@ -193,6 +194,15 @@ func row(ok bool, name, value string) {
 		mark = colorWarn + "✗" + colorOff
 	}
 	fmt.Printf("    %s %-22s %s\n", mark, name, value)
+}
+
+// rowOptional es una fila que no es ni un ok ni un fallo: algo que se
+// puede dejar sin configurar.
+//
+// El tema del preview es el caso: si no hay ninguno, el preview usa el
+// tema que Plymouth tiene configurado en el sistema, que funciona.
+func rowOptional(name, value string) {
+	fmt.Printf("    %s %-22s %s\n", colorDim+"·"+colorOff, name, value)
 }
 
 // rowWarn imprime una línea de aviso (no es un fallo).
