@@ -158,12 +158,11 @@ decodifica más rápido — ideal para un bootloader.
 en PNG o QOI, que son lossless.
 
 **Para el blur**: Limine no puede difuminar — la imagen se dibuja tal cual.
-Se difumina antes, con el generador:
+Se difumina antes, al preparar el fichero:
 
 ```bash
-scripts/make-wallpaper.sh examples/wallpaper/rei.png \
-  -o /tmp/splash.png --blur 0x30 --dim 0.4 --res 1920x1080
-sudo cp /tmp/splash.png /boot/splash.png
+boot-preview loader add MI_IMAGEN.png --blur 0x30 --dim 0.4 --res 1920x1080
+boot-preview loader apply wallpaper
 ```
 
 Si querés QOI:

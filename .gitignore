@@ -10,9 +10,12 @@ shot.ppm
 # Config local (puede tener rutas personales)
 limine-preview.local.conf
 
+# El binario compilado (se genera con `go build`)
+/boot-preview
+
 # Sistema
 .DS_Store
 Thumbs.db
 
-# El paquete descargable (se genera con scripts/bundle.sh)
+# El paquete descargable (se genera con `boot-preview bundle`)
 dist/

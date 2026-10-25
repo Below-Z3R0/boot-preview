@@ -41,16 +41,18 @@ el mismo tema que usa la máquina al arrancar.
 
 ```
 boot-preview/
+├── cmd/boot-preview/         # el punto de entrada: un solo binario
+├── internal/
+│   ├── cli/                  # helpers compartidos (rutas, archivos, comandos)
+│   ├── loader/               # el módulo de Limine (el menú)
+│   ├── animation/            # el módulo de Plymouth (el splash)
+│   ├── wallpaper/            # blur + velo + resolución, para Limine
+│   ├── steam/                # el parser de las animaciones de Steam
+│   ├── install/              # el instalador
+│   ├── verify/               # la verificación post-instalación
+│   └── pack/                 # el paquete descargable y el hook de pacman
 ├── scripts/
-│   ├── boot-preview.sh       # el dispatcher: `boot-preview <loader|animation>`
-│   ├── loader.sh             # el módulo de Limine (el menú)
-│   ├── animation.sh          # el módulo de Plymouth (el splash)
-│   ├── install.sh            # el instalador (install [loader|animation])
-│   ├── bundle.sh             # arma el paquete descargable
-│   ├── boot-preview-hook.sh  # el hook de pacman
-│   ├── boot-preview.hook     # su definición para pacman
-│   ├── make-wallpaper.sh     # blur + velo + resolución, para Limine
-│   └── prepare-wallpapers.sh # genera las dos versiones del wallpaper
+│   └── smoke-test.sh         # la batería de pruebas (sin root, para CI)
 ├── examples/
 │   ├── loader.conf           # la config de prueba
 │   ├── theming-rosepine.conf # el bloque de theming para aplicar al sistema
@@ -62,9 +64,10 @@ boot-preview/
 │   ├── FLUJO.md              # el flujo completo, de la config a la pantalla
 │   ├── THEMING.md            # las 52 opciones y qué se puede personalizar
 │   ├── APLICAR.md            # cómo aplicar el tema al Limine real
-│   ├── RENDIMIENTO.md        # las mediciones y la comparativa Bun vs bash
+│   ├── RENDIMIENTO.md        # las mediciones y la comparativa Go vs bash
 │   └── PLYMOUTH.md           # el splash de arranque (que sí es Plymouth)
 ├── previews/                 # las capturas
+├── go.mod
 └── LICENSE
 ```
 
@@ -75,7 +78,7 @@ forma distinta. Esta tabla es la que hay que tener clara:
 
 | # | Path | Qué es | Quién la escribe | ¿La carga el preview? |
 |---|---|---|---|---|
-| **1** | `~/.config/boot-preview/loader/limine.conf` | la config **de prueba** — la que edita el usuario para iterar el tema | `install.sh` la instala desde `examples/loader.conf`; el script la inyecta con el wallpaper | ✅ **por default** |
+| **1** | `~/.config/boot-preview/loader/limine.conf` | la config **de prueba** — la que edita el usuario para iterar el tema | `install` la instala desde `examples/loader.conf`; el preview la inyecta con el wallpaper | ✅ **por default** |
 | **2** | `/boot/limine.conf` | la config **compilada** que Limine lee de verdad en el boot (99 KB, autogenerada) | `limine-mkinitcpio` la genera desde la #3 | ✅ solo con `--real` (se lee con sudo) |
 | **3** | `/etc/default/limine` | la **fuente** — cmdline del kernel, boot order, y el theming que agregues | **la editás vos** | ❌ nunca se toca |
 
@@ -191,9 +194,9 @@ Detalles de los cambios:
   a ojo). Se usa vips si está, y si no `magick`: el script sigue funcionando.
 - **QOI sigue pasando por ImageMagick**: vips no escribe ese formato.
 
-> Bun no entra acá: arranca en ~117 ms contra los 2 ms de bash, y el trabajo
-> real lo hacen binarios externos (qemu, xorriso, vips). Ver
-> [docs/RENDIMIENTO.md](docs/RENDIMIENTO.md).
+> El tool está escrito en Go: un solo binario, sin dependencias de runtime.
+> El trabajo real lo hacen binarios externos igual (qemu, xorriso, vips), pero
+> el arranque es de ~3 ms. Ver [docs/RENDIMIENTO.md](docs/RENDIMIENTO.md).
 
 ## Instalación
 
@@ -201,7 +204,7 @@ Detalles de los cambios:
 
 ```bash
 curl -fsSL https://github.com/Below-Z3R0/boot-preview/releases/latest/download/boot-preview.tar.gz \
-  | tar xz && ./boot-preview/scripts/install.sh
+  | tar xz && ./boot-preview/boot-preview install
 ```
 
 O, desde el repo:
@@ -209,7 +212,8 @@ O, desde el repo:
 ```bash
 git clone https://github.com/Below-Z3R0/boot-preview.git
 cd boot-preview
-./scripts/install.sh
+go build -o boot-preview ./cmd/boot-preview
+./boot-preview install
 ```
 
 ### Instalar solo una parte
@@ -254,14 +258,14 @@ boot-preview hooks uninstall   # lo saca
 
 Solo informa, no modifica nada.
 
-### Qué hace el `install.sh`
+### Qué hace el `install`
 
 Es idempotente: podés volver a correrlo las veces que quieras.
 
 | Paso | Qué hace |
 |---|---|
 | **1. Dependencias** | verifica (e instala con sudo si falta) `qemu-desktop`, `libisoburn` (xorriso), `imagemagick`, `socat`, `edk2-ovmf` para Limine; `ffmpeg`, `xdotool`, `xorg-xhost` para Plymouth. Avisa si falta `/dev/kvm` |
-| **2. Los scripts** | `boot-preview` (el dispatcher) a `~/.local/bin/`. Los dos módulos (`loader.sh`, `animation.sh`) y los auxiliares van a `~/.local/lib/boot-preview/`, **fuera del PATH**: el usuario solo ve un comando. Más un shim en `/usr/local/bin/` para que `sudo boot-preview` funcione (el `secure_path` de sudo no incluye `~/.local/bin`) |
+| **2. El binario** | copia el binario `boot-preview` a `~/.local/bin/`. Los assets (los ejemplos) van a `~/.local/lib/boot-preview/assets/`, **fuera del PATH**: el usuario solo ve un comando. Más un shim en `/usr/local/bin/` para que `sudo boot-preview` funcione (el `secure_path` de sudo no incluye `~/.local/bin`) |
 | **3. La config** | crea `~/.config/boot-preview/loader/limine.conf` desde `examples/loader.conf`. Si ya había una, la guarda como `.bak` |
 | **4. El wallpaper** | copia el de ejemplo a `~/.config/boot-preview/loader/wallpaper/rei.png` (no lo pisa si ya está) |
 | **5. El repo** | guarda la ruta del repo en `~/.config/boot-preview/repo` (el CLI la usa para saber dónde van las capturas) y crea `<repo>/previews/` |
@@ -277,49 +281,36 @@ O a mano, paso a paso:
 sudo pacman -S --needed qemu-desktop libisoburn edk2-ovmf imagemagick \
     ffmpeg xdotool xorg-xhost
 
-# 2. Los scripts
-mkdir -p ~/.local/lib/boot-preview
-install -m 755 scripts/boot-preview.sh ~/.local/bin/boot-preview
-install -m 755 scripts/loader.sh    ~/.local/lib/boot-preview/loader.sh
-install -m 755 scripts/animation.sh ~/.local/lib/boot-preview/animation.sh
-install -m 755 scripts/make-wallpaper.sh     ~/.local/lib/boot-preview/
-install -m 755 scripts/prepare-wallpapers.sh ~/.local/lib/boot-preview/
+# 2. Compilar e instalar el binario
+go build -o /tmp/boot-preview ./cmd/boot-preview
+/tmp/boot-preview install
 
-# 3. La config de prueba
-mkdir -p ~/.config/boot-preview/loader/wallpaper
-install -m 644 examples/loader.conf ~/.config/boot-preview/loader/limine.conf
-
-# 4. El wallpaper (rei.png + la activa)
-install -m 644 examples/wallpaper/rei.png ~/.config/boot-preview/loader/wallpaper/rei.png
-cp ~/.config/boot-preview/loader/wallpaper/rei.png \
-   ~/.config/boot-preview/loader/wallpaper/wallpaper.png
-
-# 4b. La ruta del repo (para que `shot` sepa dónde guardar)
-pwd > ~/.config/boot-preview/repo
+# O a mano, sin pasar por el instalador:
+mkdir -p ~/.local/bin ~/.local/lib/boot-preview/assets
+install -m 755 /tmp/boot-preview ~/.local/bin/boot-preview
+cp -r examples/* ~/.local/lib/boot-preview/assets/
 ```
 
 ### Preparar un wallpaper con blur
 
+Limine no puede difuminar: dibuja la imagen tal cual. Así que el blur se
+aplica **antes**, al preparar el fichero:
+
 ```bash
-make-wallpaper.sh IMAGEN [-o SALIDA] [--blur 0x30] [--dim 0.4]
-                            [--res 1920x1080] [--format png|qoi]
-                            [--overlay COLOR]
+boot-preview loader add MI_IMAGEN.png    # la deja como wallpaper del preview
+boot-preview loader wallpapers           # genera la real y la difuminada
 ```
 
-El `install.sh` hace todo eso y además deja un **shim** en
-`/usr/local/bin/boot-preview` para que `sudo boot-preview loader` también
-funcione (ver [la trampa del `sudo`](#las-trampas)).
+El `install` además deja un **shim** en `/usr/local/bin/boot-preview` para
+que `sudo boot-preview loader` también funcione (ver [la trampa del
+`sudo`](#las-trampas)).
 
 ### Qué queda instalado y dónde
 
 | Path | Qué es |
 |---|---|
 | `~/.local/bin/boot-preview` | **el único comando** en el PATH |
-| `~/.local/lib/boot-preview/loader.sh` | el módulo de Limine (fuera del PATH) |
-| `~/.local/lib/boot-preview/animation.sh` | el módulo de Plymouth (fuera del PATH) |
-| `~/.local/lib/boot-preview/make-wallpaper.sh` | auxiliar (fuera del PATH) |
-| `~/.local/lib/boot-preview/prepare-wallpapers.sh` | auxiliar (fuera del PATH) |
-| `/usr/local/lib/boot-preview/boot-preview-hook.sh` | el hook de pacman (si lo instalaste) |
+| `~/.local/lib/boot-preview/assets/` | los ejemplos (loader.conf, wallpapers) |
 | `/etc/pacman.d/hooks/boot-preview.hook` | la definición del hook |
 | `/usr/local/bin/boot-preview` | el shim para `sudo boot-preview` |
 | `~/.config/boot-preview/repo` | la ruta del repo (para las capturas en `previews/`) |
@@ -633,15 +624,14 @@ term_foreground: e0def4
 
 ### Otras opciones
 
+El wallpaper se prepara con `boot-preview loader add`:
+
 ```bash
-# velo uniforme encima (si el texto no se lee)
-make-wallpaper.sh foto.png --blur 0x30 --dim 0.4 --res 1920x1080
+# la nitida, tal cual
+boot-preview loader add foto.png
 
-# el velo en el color de fondo del tema
-make-wallpaper.sh foto.png --blur 0x30 --dim 0.45 --overlay "#191724"
-
-# versión QOI (lossless y se decodifica más rápido que PNG)
-make-wallpaper.sh foto.png --res 1920x1080 --format qoi
+# la difuminada (Limine no puede difuminar: se aplica antes)
+boot-preview loader wallpapers
 ```
 
 **Para máxima calidad** hay dos caminos:
@@ -665,8 +655,8 @@ make-wallpaper.sh foto.png --res 1920x1080 --format qoi
    Lanczos. El resultado tiene más detalle perceptible que el original, sin
    inventar textura nueva.
 
-   Para el blur, `make-wallpaper.sh` (o `boot-preview loader wallpapers`) lo aplica
-   sobre la imagen ya mejorada.
+   Para el blur, `boot-preview loader wallpapers` lo aplica sobre la imagen
+   ya mejorada.
 
 ### ⚠️ El alpha de `term_background` va al revés
 
@@ -751,15 +741,18 @@ No hace falta `limine-mkinitcpio`.
 | [`docs/THEMING.md`](docs/THEMING.md) | Las 52 opciones, qué se puede personalizar, los límites y el código detrás |
 | [`docs/APLICAR.md`](docs/APLICAR.md) | Cómo aplicar el tema al `/etc/default/limine` real, con rollback |
 | [`docs/PLYMOUTH.md`](docs/PLYMOUTH.md) | El splash de Plymouth: el renderer X11, el plugin `script`, y cómo convertir un video de Steam en tema |
-| [`docs/RENDIMIENTO.md`](docs/RENDIMIENTO.md) | Las mediciones y por qué los scripts siguen en bash (y no en Bun) |
+| [`docs/RENDIMIENTO.md`](docs/RENDIMIENTO.md) | Las mediciones y por qué el tool está en Go |
 | [`examples/loader.conf`](examples/loader.conf) | La config de prueba, comentada |
 | [`examples/theming-rosepine.conf`](examples/theming-rosepine.conf) | El bloque de theming para pegar en `/etc/default/limine` |
-| [`scripts/boot-preview.sh`](scripts/boot-preview.sh) | El dispatcher: `boot-preview <loader\|animation>` |
-| [`scripts/loader.sh`](scripts/loader.sh) | El módulo de Limine |
-| [`scripts/animation.sh`](scripts/animation.sh) | El módulo de Plymouth |
-| [`scripts/make-wallpaper.sh`](scripts/make-wallpaper.sh) | Blur, velo y escalado del wallpaper (Limine no puede difuminar) |
-| [`scripts/prepare-wallpapers.sh`](scripts/prepare-wallpapers.sh) | Genera las dos versiones: la real y la ya difuminada |
-| [`scripts/bundle.sh`](scripts/bundle.sh) | Arma el paquete descargable (`dist/boot-preview.tar.gz`) |
+| [`cmd/boot-preview/main.go`](cmd/boot-preview/main.go) | El punto de entrada: el dispatcher de los subcomandos |
+| [`internal/loader/`](internal/loader/) | El módulo de Limine |
+| [`internal/animation/`](internal/animation/) | El módulo de Plymouth |
+| [`internal/wallpaper/`](internal/wallpaper/) | Blur, velo y escalado del wallpaper (Limine no puede difuminar) |
+| [`internal/steam/`](internal/steam/) | El parser de las animaciones de startup de Steam |
+| [`internal/install/`](internal/install/) | El instalador |
+| [`internal/verify/`](internal/verify/) | La verificación post-instalación |
+| [`internal/pack/`](internal/pack/) | El paquete descargable y el hook de pacman |
+| [`scripts/smoke-test.sh`](scripts/smoke-test.sh) | La batería de pruebas (sin root, corre en CI) |
 
 ## Licencia
 

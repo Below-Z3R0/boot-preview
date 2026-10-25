@@ -148,6 +148,32 @@ El sistema queda intacto. Al salir, `/run/plymouth/themes/<tema>` se borra.
 > por encima en un namespace privado es la única forma de usar otro tema sin
 > tocar `/etc`.
 
+### El timing: por qué la animación no se repetía
+
+Plymouth refresca a **50 Hz** (`FRAMES_PER_SECOND` del plugin `script`).
+Si el script avanza un frame por refresh, un video de 30 fps se reproduce
+**1.67× más rápido** y se ve "volver a empezar a la mitad".
+
+El avance se calcula del fps real del video: 30 fps → **3 frames cada 5
+refreshes** (3/5 = 0.6 = 30/50). Como el ratio no siempre es entero, el
+script usa dos contadores:
+
+```javascript
+tick = (tick + 1) % 5;
+if (tick == 0) {
+  frame = (frame + 3) % 210;
+}
+```
+
+Con 210 frames a 30 fps son 350 refreshes = **7.0 s**: exactamente la
+duración del video.
+
+### El tamaño: por qué no llenaba la pantalla
+
+El plugin `script` **no tiene `SetScale`**: el sprite se dibuja a su
+tamaño nativo. Por eso los frames se generan al tamaño de la pantalla
+(`PLYMOUTH_SCREEN_W`/`_H`, 1920×1080 por defecto).
+
 ### El plugin `script`, no `two-step`
 
 Los temas generados desde un video de Steam usan el plugin **`script`**, no
@@ -288,8 +314,18 @@ boot-preview animation steam-convert ~/otro.webm          # un video puntual
 boot-preview animation steam-apply deck_startup.webm      # nombre relativo a movies/
 ```
 
-Ajustes por variable de entorno: `STEAM_FPS` (default 30) y `STEAM_RES`
-(default `1920x1080`).
+El video se analiza con `ffprobe`: el **fps** y la **resolución** se
+detectan solos y el aspect ratio se respeta. Los videos de Steam vienen en
+varios formatos (los de la tienda, 1920×1200 a 30 fps; los del Deck,
+450×450 a 60 fps) y no hace falta saberlo.
+
+Se puede forzar:
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `STEAM_FPS` | el del video | forzar los frames por segundo |
+| `STEAM_RES` | el del video | forzar la resolución |
+| `PLYMOUTH_SCREEN_W` / `_H` | `1920` / `1080` | el tamaño final de los frames (el plugin `script` no puede escalar el sprite) |
 
 Qué hace:
 

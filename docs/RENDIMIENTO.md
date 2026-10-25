@@ -1,11 +1,11 @@
-# Rendimiento: los scripts y la pregunta de Bun
+# Rendimiento: por qué Go y no bash
 
-Dos cosas distintas que se mezclan fácil:
+Este documento tiene dos partes:
 
 1. **El rendimiento del pipeline** (qué tarda en salir un wallpaper o una
    captura) — acá había margen real y se arregló.
-2. **El lenguaje de los scripts** — acá la respuesta es que no cambia nada,
-   y los números lo muestran.
+2. **El lenguaje del tool** — bash alcanzaba, pero Go da tipado, tests y un
+   solo binario. Los números están abajo.
 
 ---
 
@@ -15,15 +15,15 @@ Medido en esta máquina (Intel UHD 12 núcleos, QEMU con KVM habilitado).
 
 | Operación | Antes | Ahora | Ganancia |
 |---|---|---|---|
-| `boot-preview loader shot` | 15.6 s | **2.8 - 3.1 s** | **5x** |
-| `make-wallpaper --blur 0x30 --res 1920x1080` | 0.90 s | **0.32 s** | **2.8x** |
-| `make-wallpaper` sin blur (sharpen) | 0.85 s | **0.36 s** | 2.4x |
-| `prepare-wallpapers` (las 2 versiones) | ~1.9 s | **0.90 s** | 2.1x |
+| `boot-preview loader shot` | 15.6 s | **2.8 - 3.3 s** | **5x** |
+| `boot-preview loader add --blur 0x30 --res 1920x1080` | 0.90 s | **0.32 s** | **2.8x** |
+| el mismo, sin blur (sharpen) | 0.85 s | **0.36 s** | 2.4x |
+| `boot-preview loader wallpapers` (las 2 versiones) | ~1.9 s | **0.90 s** | 2.1x |
 
 ### Qué se cambió
 
 **a) El `sleep 15` fijo.** Era el 96% del tiempo de una captura. Ahora el
-script consulta el monitor de QEMU cada 300 ms.
+tool consulta el monitor de QEMU cada 300 ms.
 
 La primera versión del polling miraba si el framebuffer tenía contenido
 (`vips avg > 1`), y **capturaba el logo de TianoCore**: el firmware ya pinta
@@ -68,81 +68,86 @@ Dos trampas que aparecieron al migrar:
 **c) QOI sigue con ImageMagick.** vips no escribe QOI, así que esa rama no
 cambia.
 
+**d) El escalado del tema de Plymouth.** `vips thumbnail --size both`
+**no fuerza el aspecto**: una imagen de 1728×1080 quedaba con bandas. La
+vía correcta es `magick -resize "1920x1080!"`, donde el `!` final es lo que
+fuerza la proporción exacta. vips queda como atajo solo cuando la imagen ya
+tiene la proporción correcta.
+
 ---
 
-## 2. ¿Se puede pasar todo a TypeScript + Bun?
-
-**Sí, se puede. No conviene.** Estos son los números.
+## 2. Go contra bash
 
 ### Arranque del runtime
 
 | Runtime | Arranque |
 |---|---|
-| `bash -c true` | **2.2 ms** |
-| `python3 -c pass` | 52 ms |
-| `bun -e 'process.exit(0)'` | **117 ms** |
+| `bash -c true` | **1.1 ms** |
+| `bun -e 'process.exit(0)'` | 1.4 ms |
+| **binario Go** (`boot-preview version`) | **2.3 ms** |
+| `python3 -c pass` | 9.9 ms |
 
-**Bun tarda ~53x más en arrancar que bash.** Cada invocación de
-`boot-preview loader` o `make-wallpaper` pagaría ese peaje antes de hacer nada.
+Go paga ~1.2 ms más que bash en arrancar. Es un peaje fijo por invocación.
 
-### El mismo script, en los dos lenguajes
+### Los comandos reales
 
-Un script que hace lo mismo: parsea argumentos, lee un conf, reescribe un
-bloque con regex y copia un archivo.
+Comparación del binario Go contra los scripts bash, con el mismo trabajo
+(mínimo de 5 corridas, en esta máquina):
 
-| Versión | Por invocación (20 iteraciones) |
-|---|---|
-| bash | **18.1 ms** |
-| TypeScript + Bun | 23.6 ms |
+| Comando | Go | bash | Ganancia |
+|---|---|---|---|
+| `--help` | 3.2 ms | 5.1 ms | 1.6x |
+| `loader --help` | 3.5 ms | 5.0 ms | 1.4x |
+| `animation sources` | 3.5 ms | 32.7 ms | **9.3x** |
+| `animation steam-source` | 4.2 ms | 27.6 ms | **6.5x** |
+| `verify` | 608 ms | 653 ms | 1.1x |
+| `animation shot` | 12.2 s | 12.2 s | igual |
+| `loader shot` | 3.3 s | 3.4 s | igual |
 
-**Bun queda 1.3x más lento** para el tipo de trabajo que hacen estos
-scripts.
+**Lo que importa**: los comandos lentos (`shot`) son iguales — su tiempo lo
+dominan QEMU, Plymouth y los sleeps, no el lenguaje. Los comandos cortos
+(listados, ayuda) son **6-9x más rápidos** en Go, porque el bash tenía que
+lanzar procesos uno por uno para leer la config y formatear la salida.
 
-### Por qué
+### Por qué Go igual
 
-Los scripts son **orquestadores**: casi todo su tiempo lo pasan esperando a
-binarios externos.
+El argumento no es el rendimiento: es la **mantenibilidad**.
 
-| Pieza del preview | Tiempo | ¿Se podría reescribir en TS? |
-|---|---|---|
-| `qemu-system-x86_64` | 2-3 s (con KVM) | No — es el emulador |
-| `xorriso` (construir ISO) | 105 ms | No — hay librerías, pero no ganás |
-| `vips` (imagen) | 88 ms | Tal vez, pero vips ya usa SIMD |
-| copiar 4 binarios | 6 ms | Sí, pero es copiar bytes |
-| parsear args | <1 ms | Sí, y no importa |
+- **Tipado**: el parser de Steam y el del config de Limine manejan datos
+  estructurados. En bash, un `sed` mal escrito devuelve una cadena vacía y
+  el error aparece tres comandos más abajo.
+- **Tests**: hay tests unitarios (`go test ./...`) que cubren el orden de
+  los frames, la idempotencia del `apply`, el parser de Steam y el parseo
+  de la resolución. En bash eso solo se puede probar ejecutando el comando
+  entero.
+- **Un solo binario**: sin `PATH`, sin `install -m 755` de cada módulo, sin
+  que un script encuentre a sus hermanos. `boot-preview` es un archivo.
+- **Errores claros**: `fmt.Errorf("resolución inválida: %q", res)` contra
+  un `Atoi` que devuelve 0 y un PNG de 0×0.
 
-El 90% del tiempo no es del lenguaje. Reescribir en Bun mueve el 10%
-restante a un runtime que arranca 53x más lento.
+### Qué NO se optimizó
 
-### Dónde Bun sí gana
+El grueso del tiempo es de procesos externos: QEMU tarda ~2.5 s en arrancar
+con KVM, Plymouth ~3 s en abrir su ventana, ffmpeg ~8 s en convertir un
+video. Reescribir el tool en otro lenguaje no mueve esa aguja.
 
-| Caso | Bash | Bun |
-|---|---|---|
-| Procesar un JSON grande | jq + shell | **Bun gana** |
-| HTTP, APIs, concurrencia | curl + xargs | **Bun gana** |
-| Lógica de negocio compleja | frágil | **Bun gana** |
-| Scripts de 30 líneas que llaman binarios | **Bash gana** | — |
-| Arranque en cada invocación | **Bash gana** | — |
+El único comando donde el lenguaje se nota es `verify` (600 ms), y ahí lo
+que cuesta es `pacman -Q` por cada dependencia — un proceso por paquete.
+Se podría cachear, pero `verify` se corre una vez cada tanto.
 
-La regla práctica: **si el script es un pegamento entre binarios, bash. Si
-tiene lógica propia (parseo, validación, red), TypeScript.**
+---
 
-`boot-preview loader` es 100% pegamento. Por eso se queda en bash.
+## 3. La decisión
 
-### Si algún día se migrara
+El tool está en **Go**. Bash se usaba, y funcionaba, pero:
 
-Sería por mantenibilidad, no por velocidad:
+- el CLI iba a crecer (más subcomandos, más opciones) y bash se ponía
+  difícil de probar;
+- los errores silenciosos (un `sed` que no matchea, un `sleep` que no
+  espera) ya habían costado horas.
 
-| Ventaja de Bun | Costo |
-|---|---|
-| Tipos y autocompletado | +117 ms por invocación |
-| Tests unitarios reales | Bun como dependencia |
-| Manejo de errores con stack traces | Recompilar al distribuir (`bun build --compile`) |
-| Parsing de argumentos robusto | 2 runtimes en el repo (bash para setup, TS para el resto) |
-
-Lo único que **sí** valdría la pena mover a Bun/TS sería el tratamiento de
-imágenes — pero para eso ya está vips, que es C con SIMD y le gana a
-cualquier cosa que se escriba arriba.
+El precio es 1 ms extra de arranque por invocación. A cambio: tipos, tests,
+un binario y errores que dicen qué pasó.
 
 ---
 
@@ -152,9 +157,10 @@ cualquier cosa que se escriba arriba.
 # Arranque de los runtimes
 time bash -c true
 time bun -e 'process.exit(0)'
+time ./boot-preview version
 
 # El pipeline de imagen
-time make-wallpaper IMAGEN -o /tmp/x.png --res 1920x1080 --blur 0x30
+time boot-preview loader add IMAGEN --res 1920x1080 --blur 0x30
 time vips gaussblur IMAGEN /tmp/x.v 30
 
 # La captura
@@ -162,4 +168,7 @@ time boot-preview loader shot /tmp/x.png --timeout 25
 
 # Equivalencia de las dos salidas
 magick compare -metric RMSE salida-magick.png salida-vips.png null:
+
+# La batería (sin root, corre en CI)
+bash scripts/smoke-test.sh ./boot-preview
 ```

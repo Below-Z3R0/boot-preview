@@ -238,15 +238,15 @@ del color de `term_background` mezclado en los bordes del área del texto — se
 ve mal, y no es lo que uno quiere.
 
 El desenfoque se hace **antes**, al preparar el fichero — y para eso está
-`scripts/make-wallpaper.sh`:
+`boot-preview loader add`:
 
 ```bash
 # wallpaper difuminado y velado, a la resolución exacta de la interfaz
-scripts/make-wallpaper.sh ~/Pictures/foto.png \
+boot-preview loader add ~/Pictures/foto.png \
   --blur 0x30 --dim 0.4 --res 1920x1080
 
 # lo mismo, con el velo en el color de fondo del tema
-scripts/make-wallpaper.sh ~/Pictures/foto.png \
+boot-preview loader add ~/Pictures/foto.png \
   --blur 0x30 --dim 0.45 --overlay "#191724" --res 1920x1080
 ```
 

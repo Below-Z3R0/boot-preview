@@ -1,0 +1,176 @@
+// Package cli tiene los helpers compartidos por todos los módulos.
+//
+// Acá vive lo que más de un paquete necesita: correr comandos, leer y
+// escribir archivos, y saber dónde están las cosas.
+package cli
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// CopyFile copia un archivo, creando los directorios que falten.
+//
+// Preserva los permisos del origen. Es la versión que usan todos los
+// paquetes: si un destino está en una carpeta que no existe (por ejemplo
+// /run/plymouth/themes), el error tiene que ser claro, no un "no such
+// file or directory" a medio camino.
+func CopyFile(src, dest string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(src); err == nil {
+		mode = info.Mode().Perm()
+	}
+	return os.WriteFile(dest, data, mode)
+}
+
+// CopyDir copia una carpeta recursivamente.
+func CopyDir(src, dest string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return CopyFile(src, dest)
+	}
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		from := filepath.Join(src, entry.Name())
+		to := filepath.Join(dest, entry.Name())
+		if entry.IsDir() {
+			if err := CopyDir(from, to); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := CopyFile(from, to); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FileSize devuelve el tamaño de un archivo en un formato legible ("12 MB").
+func FileSize(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "?"
+	}
+	return HumanSize(info.Size())
+}
+
+// HumanSize formatea un tamaño en bytes.
+//
+// Compacto y sin decimales en KB: el tamaño de una captura o de un tema
+// se lee mejor así ("653K", "45M") que con "653 KB" o "45.2 MB".
+func HumanSize(bytes int64) string {
+	const unit = 1024
+	size := float64(bytes)
+	if size < unit {
+		return fmt.Sprintf("%dB", bytes)
+	}
+	if size < unit*unit {
+		return fmt.Sprintf("%.0fK", size/unit)
+	}
+	return fmt.Sprintf("%.1fM", size/(unit*unit))
+}
+
+// DirSize devuelve el tamaño total de una carpeta.
+func DirSize(path string) string {
+	var total int64
+	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			total += info.Size()
+		}
+		return nil
+	})
+	return HumanSize(total)
+}
+
+// ParseRes parsea una resolución "1920x1080".
+//
+// Devuelve ancho, alto y un error: si no se puede parsear, el error
+// tiene que decir cuál era el valor.
+func ParseRes(res string) (int, int, error) {
+	parts := strings.Split(strings.ToLower(res), "x")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("resolución inválida: %q (se espera AnchoxAlto)", res)
+	}
+	width, err := parseInt(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("resolución inválida: %q", res)
+	}
+	height, err := parseInt(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("resolución inválida: %q", res)
+	}
+	if width <= 0 || height <= 0 {
+		return 0, 0, fmt.Errorf("resolución inválida: %q", res)
+	}
+	return width, height, nil
+}
+
+// parseInt es strconv.Atoi sin el error: devuelve 0 si no puede.
+func parseInt(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("vacío")
+	}
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, fmt.Errorf("no es un número: %q", s)
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n, nil
+}
+
+// ImageSize devuelve el tamaño de una imagen, en píxeles.
+//
+// Usa vips o ImageMagick, los dos que ya son dependencia del tool.
+func ImageSize(path string) (int, int) {
+	if HaveCommand("vipsheader") {
+		w, errW := Run("vipsheader", "-f", "width", path)
+		h, errH := Run("vipsheader", "-f", "height", path)
+		if errW == nil && errH == nil {
+			width, _ := parseInt(strings.TrimSpace(w))
+			height, _ := parseInt(strings.TrimSpace(h))
+			if width > 0 && height > 0 {
+				return width, height
+			}
+		}
+	}
+	if HaveCommand("magick") {
+		out, err := Run("magick", "identify", "-format", "%w %h", path)
+		if err == nil {
+			fields := strings.Fields(out)
+			if len(fields) == 2 {
+				width, _ := parseInt(fields[0])
+				height, _ := parseInt(fields[1])
+				return width, height
+			}
+		}
+	}
+	return 0, 0
+}
+
+// FileExists dice si una ruta existe.
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
