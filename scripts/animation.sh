@@ -120,7 +120,7 @@ repo_file="$(dirname "$CONFIG_DIR")/repo"
 # DISPLAY (o WAYLAND_DISPLAY) el renderer x11.so no puede abrir la ventana.
 need_root() {
   if [[ "$(id -u)" != "0" ]]; then
-    exec sudo --preserve-env=HOME,XDG_CACHE_HOME,XDG_CONFIG_HOME,DISPLAY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,XAUTHORITY,TERM,STEAM_FPS,STEAM_RES \
+    exec sudo --preserve-env=HOME,XDG_CACHE_HOME,XDG_CONFIG_HOME,DISPLAY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,XAUTHORITY,TERM,STEAM_FPS,STEAM_RES,PLYMOUTH_SCREEN_W,PLYMOUTH_SCREEN_H \
       "$0" "$@"
   fi
 }
@@ -684,6 +684,39 @@ steam_item_name() {
     '$1 == "tienda" && $3 == id { print $2; exit }'
 }
 
+# ── Detectar las propiedades del video ──────────────────────────────────────
+# Los videos de Steam vienen en varias resoluciones y fps (1920x1200 a 30 fps
+# los de la tienda, 450x450 a 60 fps los del Deck). Hardcodear 30/1920x1080
+# hacia que la animacion se reproduzca mas rapido y no llene la pantalla.
+#
+# Devuelve: "<fps> <width> <height>"
+video_props() {
+  local video="$1"
+
+  # ffprobe devuelve los campos en orden alfabetico, asi que se pide cada
+  # uno por separado: el orden no se asume.
+  local fps width height
+  fps="$(ffprobe -v error -select_streams v:0 \
+            -show_entries stream=r_frame_rate -of csv=p=0 "$video" 2>/dev/null)"
+  width="$(ffprobe -v error -select_streams v:0 \
+             -show_entries stream=width -of csv=p=0 "$video" 2>/dev/null)"
+  height="$(ffprobe -v error -select_streams v:0 \
+              -show_entries stream=height -of csv=p=0 "$video" 2>/dev/null)"
+
+  [[ -n "$width" && -n "$height" ]] || return 1
+
+  # r_frame_rate viene como "30/1" (num/den).
+  local num den
+  if [[ "$fps" == */* ]]; then
+    num="${fps%%/*}"
+    den="${fps##*/}"
+    fps="$(python3 -c "print(round(float('$num')/float('$den')) if float('$den') else 30)" 2>/dev/null || echo 30)"
+  fi
+  [[ "$fps" =~ ^[0-9]+$ ]] || fps=30
+
+  printf '%s %s %s\n' "$fps" "$width" "$height"
+}
+
 # ── Steam: convertir ──────────────────────────────────────────────────────
 convert_video_to_theme() {
   local video="$1" name="$2" fps="$3" res="$4" dest tmp w h base
@@ -693,10 +726,33 @@ convert_video_to_theme() {
   command -v ffmpeg >/dev/null 2>&1 || { echo "FALTA: ffmpeg" >&2; return 1; }
 
   tmp="$(mktemp -d /tmp/plymouth-theme.XXXXXX)"
-  w="${res%x*}"; h="${res#*x}"
+
+  # Lo que se pide se usa; si no, se detecta del video. Un video de la
+  # tienda de Steam viene en 1920x1200 a 30 fps; uno del Deck, en 450x450 a
+  # 60 fps. Hardcodear un valor hacia que la animacion se reproduzca
+  # rapido y no llene la pantalla.
+  local v_fps v_w v_h
+  read -r v_fps v_w v_h < <(video_props "$video") || true
+  [[ -n "$v_fps" ]] || v_fps=30
+  [[ -n "$v_w" ]] || v_w=1920
+  [[ -n "$v_h" ]] || v_h=1080
+
+  # El aspect ratio se respeta: la resolucion por defecto es la del video,
+  # no una fija. El alto se ajusta al ancho pedido para no deformar.
+  if [[ -z "$res" || "$res" == "auto" ]]; then
+    w="$v_w"
+    h="$(python3 -c "print(round($v_h * $v_w / $v_w))")"
+    res="${w}x${h}"
+  else
+    w="${res%x*}"; h="${res#*x}"
+  fi
+  fps="$v_fps"
 
   step "Extrayendo frames ($(basename "$video"), ${fps}fps, $res)"
   # Crop centrado al aspecto pedido, escalado Lanczos. Sin audio.
+  #
+  # El crop NO se pierde nada: los videos de Steam (1920x1200) traen la
+  # imagen centrada con bordes negros, asi que recortar a 16:9 la conserva.
   ffmpeg -loglevel error -y -i "$video" \
     -vf "fps=$fps,crop=iw:min(ih\,iw*$h/$w):0:(ih-min(ih\,iw*$h/$w))/2,scale=$w:$h:flags=lanczos" \
     -start_number 0 "$tmp/animation-%03d.png" 2>/dev/null
@@ -711,7 +767,8 @@ convert_video_to_theme() {
   mapfile -t frames < <(printf '%s\n' "$tmp"/animation-*.png | sort -V)
   [[ ${#frames[@]} -gt 0 && -f "${frames[0]}" ]] || {
     echo "No se pudo extraer ningún frame" >&2; rm -rf "$tmp"; return 1; }
-  ok "${#frames[@]} frames"
+  local total=${#frames[@]}
+  ok "$total frames"
 
   # Throbber: se reusan los del tema base (el spinner de progreso).
   base="$THEMES_DIR/cachyos-bootanimation"
@@ -725,9 +782,88 @@ convert_video_to_theme() {
   #
   # Un solo sprite al que se le cambia la imagen: muchisima menos memoria
   # que un sprite por frame (105 frames a 1280x720).
+  #
+  # EL TIMING: Plymouth refresca a FRAMES_PER_SECOND (50 en el plugin
+  # script). Si el script avanza 1 frame por refresh, una animacion de
+  # 30 fps se reproduce 1.67x mas rapido y se repite a la mitad (que era
+  # el bug).
+  #
+  # Para que la duracion sea la del video, hay que avanzar fps/50 frames
+  # por refresh. Como eso no siempre es un entero, se usan dos
+  # contadores: uno lleva la parte fraccionaria y el otro avanza los
+  # frames completos.
+  #
+  #   video 30 fps -> 3 frames cada 5 refreshes  (3/5 = 0.6 = 30/50)
+  #   video 60 fps -> 6 frames cada 5 refreshes  (6/5 = 1.2 = 60/50)
+  #   video 50 fps -> 1 frame por refresh        (exacto)
+  # El playback real = refresh_rate * frames_por_refresh. Para que la
+  # animacion dure lo mismo que el video (fps del video), los frames por
+  # refresh tienen que ser fps/50.
+  #
+  #   video 30 fps, refresh 50 Hz -> 0.6 frames por refresh
+  #   video 60 fps, refresh 50 Hz -> 1.2 frames por refresh
+  #
+  # Como los frames son enteros, se usan dos contadores: uno avanza cada
+  # refresh y otro lleva la parte fraccionaria. El script de Plymouth tiene
+  # IF y % (verificado), asi que alcanza.
+  #
+  #   refreshes_por_frame = 50 / fps_video   (p.ej. 5 refreshes por frame
+  #                                            a 10 fps; 1 a 50 fps)
+  #   frames_por_refresh = 1 / refreshes_por_frame
+  #
+  # Se usa un contador que avanza de a "frames_por_refresh" cada vez.
+  local step_num step_den
+  read -r step_num step_den < <(python3 -c "
+from fractions import Fraction
+fps = $fps
+# refresh de Plymouth = 50 Hz (FRAMES_PER_SECOND del plugin script).
+rate = Fraction(50, 1)
+avance = Fraction(fps, 1) / rate
+print(avance.numerator, avance.denominator)
+")
+  # Con Fraction: advance = fps/50 = num/den.
+  # Se avanza num frames cada den refreshes.
+  step_num="$step_num"; step_den="$step_den"
+
+  if [[ "$step_num" == "$step_den" ]]; then
+    # 1 frame por refresh: el caso simple.
+    step_num=1; step_den=1
+  elif [[ "$step_num" -gt "$step_den" ]]; then
+    # Mas de un frame por refresh: no se puede fraccionar hacia adelante,
+    # asi que se avanza de a num frames y se descarta el resto.
+    step_num=$((step_num / step_den)); step_den=1
+  fi
+
+  # EL TAMAÑO: el plugin script NO tiene SetScale. El sprite se dibuja a
+  # su tamaño nativo, asi que para que llene la pantalla los frames se
+  # generan al tamaño de la pantalla (por defecto, la de Plymouth).
+  local screen_w screen_h
+  screen_w="${PLYMOUTH_SCREEN_W:-1920}"
+  screen_h="${PLYMOUTH_SCREEN_H:-1080}"
+
+  if [[ "$w" != "$screen_w" || "$h" != "$screen_h" ]]; then
+    step "Escalando a ${screen_w}x${screen_h} (el plugin script no puede escalar el sprite)"
+    local -a big=()
+    local f
+    for f in "${frames[@]}"; do
+      big+=("$tmp/big-$(basename "$f")")
+      # vips no tiene --height en la operacion resize: se usa thumbnail
+      # con --size both (escala sin recortar). El ! de magick fuerza el
+      # aspecto exacto.
+      vips thumbnail "$f" "${big[-1]}" "$screen_w" --height "$screen_h" --size both >/dev/null 2>&1 \
+        || magick "$f" -resize "${screen_w}x${screen_h}!" "${big[-1]}" 2>/dev/null \
+        || { echo "No se pudo escalar un frame" >&2; rm -rf "$tmp"; return 1; }
+    done
+    frames=("${big[@]}")
+  fi
+
   {
     echo "# Animacion generada desde $(basename "$video")."
     echo "# Plugin \"script\" de Plymouth: loop libre, no atado al boot real."
+    echo "#"
+    echo "# Timing: Plymouth refresca a 50 fps (FRAMES_PER_SECOND del plugin"
+    echo "# script). El video va a $fps fps, asi que se avanzan $step_num frames"
+    echo "# cada $step_den refreshes para que el timing sea el del video."
     echo ""
     echo "frames = ["
     local f
@@ -739,15 +875,25 @@ convert_video_to_theme() {
     echo "Window.SetBackgroundTopColor(0, 0, 0);"
     echo "Window.SetBackgroundBottomColor(0, 0, 0);"
     echo ""
-    echo "sprite = Sprite(Image(\"animation-000.png\"));"
+    echo "sprite = Sprite(Image(\"$(basename "${frames[0]}")\"));"
     echo "sprite.SetZ(0);"
     echo "sprite.SetOpacity(1);"
     echo ""
     echo "frame = 0;"
+    echo "tick = 0;"
     echo ""
     echo "fun Refresh ()"
     echo "{"
-    echo "  frame = (frame + 1) % ${#frames[@]};"
+    if [[ "$step_num" == "1" && "$step_den" == "1" ]]; then
+      echo "  frame = (frame + 1) % ${#frames[@]};"
+    else
+      # Timing fraccionario: se avanzan $step_num frames cada $step_den
+      # refreshes, para que la duracion sea la del video original.
+      echo "  tick = (tick + 1) % $step_den;"
+      echo "  if (tick == 0) {"
+      echo "    frame = (frame + $step_num) % ${#frames[@]};"
+      echo "  }"
+    fi
     echo "  sprite.SetImage(Image(frames[frame]));"
     echo "}"
     echo ""
@@ -768,7 +914,8 @@ EOF
   step "Instalando en $dest"
   sudo rm -rf "$dest"
   sudo mkdir -p "$dest"
-  sudo cp "$tmp"/animation-*.png "$dest"/
+  sudo cp "$tmp"/animation-*.png "$dest"/ 2>/dev/null || true
+  sudo cp "$tmp"/big-*.png "$dest"/ 2>/dev/null || true
   sudo cp "$tmp"/throbber-*.png "$dest"/ 2>/dev/null || true
   sudo cp "$tmp/$name.plymouth" "$dest"/
   sudo cp "$tmp/script.script" "$dest"/
