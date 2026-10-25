@@ -9,7 +9,7 @@ import (
 
 func TestBuildScript(t *testing.T) {
 	frames := []string{"a.png", "b.png", "c.png"}
-	script := buildScript(frames, 15, 1, 2)
+	script := buildScript(frames, 15)
 
 	// El script tiene que referenciar los frames en orden.
 	posA := strings.Index(script, "a.png")
@@ -25,18 +25,25 @@ func TestBuildScript(t *testing.T) {
 
 func TestBuildScriptTiming(t *testing.T) {
 	frames := []string{"a.png", "b.png"}
-	script := buildScript(frames, 15, 1, 2)
+	script := buildScript(frames, 30)
 
-	// Con fps=15 y step 1/2, el frame dura 2/15 de segundo: el script
-	// tiene que llevar el rate y el step.
-	if !strings.Contains(script, "15") {
-		t.Errorf("el script no menciona el rate:\n%s", script)
+	// Plymouth refresca a 50 Hz y el script avanza 1 frame por refresh.
+	// Los frames se extraen a 50 fps (ver el filtro de ffmpeg), asi que
+	// el video de 30 fps se ve a su velocidad real.
+	if !strings.Contains(script, "50") {
+		t.Errorf("el script no menciona la tasa de refresco:\n%s", script)
+	}
+	if !strings.Contains(script, "30") {
+		t.Errorf("el script no menciona los fps del video:\n%s", script)
+	}
+	if !strings.Contains(script, "frame = (frame + 1)") {
+		t.Errorf("el script no avanza 1 frame por refresh:\n%s", script)
 	}
 }
 
 func TestBuildScriptEmpty(t *testing.T) {
 	// Sin frames no deberia entrar en panic.
-	script := buildScript(nil, 15, 1, 2)
+	script := buildScript(nil, 15)
 	if script == "" {
 		t.Error("buildScript() con lista vacia devolvio vacio")
 	}

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
 
 // mapCtrlQ manda ctrl+q al QEMU por el socket de QMP.
@@ -66,8 +68,6 @@ func ensureDir(dir string) error {
 	return os.MkdirAll(dir, 0o755)
 }
 
-// fileExists dice si un archivo existe.
-
 // dirOf devuelve el directorio de un path.
 func dirOf(path string) string {
 	return filepath.Dir(path)
@@ -76,3 +76,21 @@ func dirOf(path string) string {
 // unusedFmt evita que el import de fmt se marque como no usado si más
 // adelante no hace falta.
 var _ = fmt.Sprintf
+
+// writeFile escribe un archivo, con sudo si hace falta.
+func writeFile(path, content string, needsSudo bool) error {
+	if !needsSudo {
+		return os.WriteFile(path, []byte(content), 0o644)
+	}
+	tmp, err := os.CreateTemp("", "boot-preview-write.*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(content); err != nil {
+		return err
+	}
+	tmp.Close()
+	_, err = cli.RunCombined("sudo", "cp", tmp.Name(), path)
+	return err
+}

@@ -161,15 +161,32 @@ func convertVideoToTheme(video, name string) error {
 		res = fmt.Sprintf("%dx%d", w, h)
 	}
 
+	// El tamaño de la pantalla: el plugin script dibuja el sprite a su
+	// tamaño nativo, así que los frames tienen que salir al tamaño de la
+	// pantalla para llenarla.
+	screenW, screenH := screenSize()
+
 	cli.Step("Extrayendo frames (%s, %dfps, %s)", filepath.Base(video), fps, res)
 
 	// Crop centrado al aspecto pedido, escalado Lanczos. Sin audio.
 	//
 	// El crop NO se pierde nada: los videos de Steam (1920x1200) traen la
 	// imagen centrada con bordes negros, así que recortar a 16:9 la conserva.
+	//
+	// Los frames se extraen a la TASA DE REFRESCO de Plymouth (50 Hz), no
+	// a la del video. Plymouth refresca 50 veces por segundo y el script
+	// avanza un frame por refresh: si los frames fueran del video (30
+	// fps) y el script avanzara 1 por refresh, la animación correría 1.67x
+	// más rápido. Al extraer a 50 fps, ffmpeg duplica los frames que
+	// hacen falta y el script avanza 1 por refresh: el ojo ve los 30 fps
+	// reales del video, con la duración exacta.
+	//
+	// El crop va al ASPECTO DE LA PANTALLA, no al del video: si se
+	// escalara 1920x1200 a 1920x1080 sin recortar, la imagen se estiraría
+	// verticalmente (un 10% más alta).
 	filter := fmt.Sprintf(
 		"fps=%d,crop=iw:min(ih\\,iw*%d/%d):0:(ih-min(ih\\,iw*%d/%d))/2,scale=%d:%d:flags=lanczos",
-		fps, h, w, h, w, w, h)
+		refreshRate, screenH, screenW, screenH, screenW, w, h)
 
 	ffmpeg := exec.Command("ffmpeg", "-loglevel", "error", "-y", "-i", video,
 		"-vf", filter, "-start_number", "0", filepath.Join(tmp, "animation-%03d.png"))
@@ -199,7 +216,6 @@ func convertVideoToTheme(video, name string) error {
 	// EL TAMAÑO: el plugin script NO tiene SetScale. El sprite se dibuja
 	// a su tamaño nativo, así que para que llene la pantalla los frames se
 	// generan al tamaño de la pantalla (por defecto, la de Plymouth).
-	screenW, screenH := screenSize()
 	if w != screenW || h != screenH {
 		cli.Step("Escalando a %dx%d (el plugin script no puede escalar el sprite)", screenW, screenH)
 		scaled := make([]string, 0, len(frames))
@@ -213,17 +229,11 @@ func convertVideoToTheme(video, name string) error {
 		frames = scaled
 	}
 
-	// EL TIMING: Plymouth refresca a FRAMES_PER_SECOND (50 en el plugin
-	// script). Si el script avanza 1 frame por refresh, una animación de
-	// 30 fps se reproduce 1.67x más rápido y se repite a la mitad.
-	//
-	// Para que la duración sea la del video hay que avanzar fps/50 frames
-	// por refresh. Como eso no siempre es un entero, se usan dos
-	// contadores: uno lleva la parte fraccionaria y el otro avanza los
-	// frames completos.
-	stepNum, stepDen := timingFor(fps)
-
-	script := buildScript(frames, fps, stepNum, stepDen)
+	// EL TIMING: Plymouth refresca a 50 Hz (FRAMES_PER_SECOND del plugin
+	// script). El script avanza 1 frame por refresh, así que los frames
+	// tienen que estar a 50 fps para que la animación vaya a la velocidad
+	// del video. Ya se extrajeron así (ver el filtro de ffmpeg).
+	script := buildScript(frames, fps)
 	if err := os.WriteFile(filepath.Join(tmp, "script.script"), []byte(script), 0o644); err != nil {
 		return err
 	}
@@ -275,7 +285,7 @@ ScriptFile=%s/script.script
 }
 
 // buildScript genera el script.script del tema.
-func buildScript(frames []string, fps, stepNum, stepDen int) string {
+func buildScript(frames []string, fps int) string {
 	var b strings.Builder
 
 	// Sin frames no hay animacion: se devuelve un script vacio en vez de
@@ -287,15 +297,9 @@ func buildScript(frames []string, fps, stepNum, stepDen int) string {
 	b.WriteString("# Animación generada desde un video de Steam.\n")
 	b.WriteString("# Plugin \"script\" de Plymouth: loop libre, no atado al boot real.\n")
 	b.WriteString("#\n")
-	b.WriteString("# Timing: Plymouth refresca a 50 fps (FRAMES_PER_SECOND del plugin\n")
-	b.WriteString("# script). El video va a ")
-	fmt.Fprintf(&b, "%d", fps)
-	b.WriteString(" fps, así que se avanzan ")
-	fmt.Fprintf(&b, "%d", stepNum)
-	b.WriteString(" frames\n")
-	b.WriteString("# cada ")
-	fmt.Fprintf(&b, "%d", stepDen)
-	b.WriteString(" refreshes para que el timing sea el del video.\n")
+	fmt.Fprintf(&b, "# Timing: Plymouth refresca a %d Hz y este script avanza un frame\n", refreshRate)
+	fmt.Fprintf(&b, "# por refresh. Los frames se extrajeron a esa misma tasa, así que\n")
+	fmt.Fprintf(&b, "# el video (que va a %d fps) se ve a su velocidad real.\n", fps)
 	b.WriteString("\n")
 	b.WriteString("frames = [\n")
 	for _, frame := range frames {
@@ -315,49 +319,13 @@ func buildScript(frames []string, fps, stepNum, stepDen int) string {
 	b.WriteString("\n")
 	b.WriteString("fun Refresh ()\n")
 	b.WriteString("{\n")
-	if stepNum == 1 && stepDen == 1 {
-		fmt.Fprintf(&b, "  frame = (frame + 1) %% %d;\n", len(frames))
-	} else {
-		fmt.Fprintf(&b, "  tick = (tick + 1) %% %d;\n", stepDen)
-		b.WriteString("  if (tick == 0) {\n")
-		fmt.Fprintf(&b, "    frame = (frame + %d) %% %d;\n", stepNum, len(frames))
-		b.WriteString("  }\n")
-	}
+	fmt.Fprintf(&b, "  frame = (frame + 1) %% %d;\n", len(frames))
 	b.WriteString("  sprite.SetImage(Image(frames[frame]));\n")
 	b.WriteString("}\n")
 	b.WriteString("\n")
 	b.WriteString("Plymouth.SetRefreshFunction(Refresh);\n")
 
 	return b.String()
-}
-
-// timingFor calcula cuántos frames avanza por cada refresh.
-//
-// El playback real = refresh_rate * frames_por_refresh. Para que la
-// animación dure lo mismo que el video, frames_por_refresh = fps/50.
-//
-//	30 fps -> 3 frames cada 5 refreshes  (3/5 = 0.6 = 30/50)
-//	60 fps -> 6 frames cada 5 refreshes  (6/5 = 1.2 = 60/50)
-//	50 fps -> 1 frame por refresh        (exacto)
-func timingFor(fps int) (num, den int) {
-	if fps <= 0 {
-		fps = 30
-	}
-	if fps == refreshRate {
-		return 1, 1
-	}
-
-	// Se busca la fracción más pequeña que represente fps/50.
-	for den := 1; den <= 60; den++ {
-		for num := 1; num <= 120; num++ {
-			if num*refreshRate == fps*den {
-				return num, den
-			}
-		}
-	}
-
-	// Si no hay fracción exacta, se redondea.
-	return max(1, fps*den/refreshRate), 1
 }
 
 // detectVideoProps saca el fps, el ancho y el alto del video.

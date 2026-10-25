@@ -95,6 +95,12 @@ contains "subcomando desconocido avisa" "opción desconocida" "$BIN" animation n
 # comprueba solo que no se cuelgue.
 check "animation use sin argumentos no cuelga" "$BIN" animation use --help
 
+# ── El wrapper de Plymouth ─────────────────────────────────────────────
+check "plymouth --help sale bien" "$BIN" plymouth --help
+contains "el help de plymouth lista status" "status" "$BIN" plymouth --help
+contains "el help de plymouth lista quit" "quit" "$BIN" plymouth --help
+contains "subcomando plymouth desconocido avisa" "opción desconocida" "$BIN" plymouth no-existe
+
 # ── La versión ──────────────────────────────────────────────────────────
 contains "version imprime algo" "boot-preview" "$BIN" version
 

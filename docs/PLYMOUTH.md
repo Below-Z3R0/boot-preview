@@ -234,6 +234,43 @@ segundos, y se puede capturar frame a frame.
 
 ---
 
+## El daemon en background
+
+`boot-preview animation` levanta el `plymouthd` **desacoplado**: el proceso
+se pone en su propia sesión (`setsid`), así que no recibe el `SIGHUP` de la
+terminal que lo lanzó. El comando devuelve el control y la ventana sigue
+viva.
+
+Para controlarlo, el propio tool:
+
+```bash
+boot-preview plymouth status             # ¿está vivo? ¿qué tema muestra?
+boot-preview plymouth show               # mostrar el splash
+boot-preview plymouth hide               # ocultarlo
+boot-preview plymouth reload             # recargar tras editar un PNG
+boot-preview plymouth update "Cargando"  # cambiar el mensaje de estado
+boot-preview plymouth quit               # cerrar el daemon
+```
+
+`boot-preview plymouth` es un wrapper del binario `plymouth` de Plymouth:
+mismos comandos, nombres más claros y un timeout (algunos comandos de
+Plymouth esperan una tecla y colgarían la terminal).
+
+El PID del daemon queda anotado en `/tmp/boot-preview-plymouthd.pid`. Para
+cerrarlo:
+
+```bash
+boot-preview animation stop    # o: boot-preview plymouth quit
+```
+
+Si preferís el comando en primer plano:
+
+```bash
+boot-preview animation --foreground
+```
+
+---
+
 ## Usar la animación de Steam como tema
 
 ### Cuál es el video activo

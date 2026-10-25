@@ -8,10 +8,12 @@ Son dos pantallas distintas, en dos momentos distintos:
 |---|---|---|
 | **`loader`** | El **menú de Limine**, el bootloader | Elegís qué booteás |
 | **`animation`** | El **splash de Plymouth**, la animación | Arranca el kernel |
+| **`plymouth`** | Controlar el **daemon** de Plymouth | Mientras el splash corre |
 
 ```bash
 boot-preview loader      # el menú
-boot-preview animation   # la animación
+boot-preview animation   # la animación (el daemon queda en background)
+boot-preview plymouth    # controlar el daemon de Plymouth
 ```
 
 ## El menú de Limine (`loader`)
@@ -197,6 +199,34 @@ Detalles de los cambios:
 > El tool está escrito en Go: un solo binario, sin dependencias de runtime.
 > El trabajo real lo hacen binarios externos igual (qemu, xorriso, vips), pero
 > el arranque es de ~3 ms. Ver [docs/RENDIMIENTO.md](docs/RENDIMIENTO.md).
+
+## El daemon en background
+
+`boot-preview animation` levanta el `plymouthd` **desacoplado**: el comando
+devuelve el control y la ventana sigue viva aunque cierres la terminal.
+
+Para controlarlo, el propio tool:
+
+```bash
+boot-preview plymouth status          # ¿está vivo? ¿qué tema muestra?
+boot-preview plymouth show            # mostrar el splash
+boot-preview plymouth hide            # ocultarlo
+boot-preview plymouth reload          # recargar tras editar un PNG
+boot-preview plymouth update "Cargando"  # cambiar el mensaje de estado
+boot-preview plymouth quit            # cerrar el daemon
+```
+
+El wrapper cubre los comandos de Plymouth con nombres claros y pone un
+timeout (algunos esperan una tecla y colgarían la terminal).
+
+Si preferís el comando en primer plano (que espera, y se cierra con
+Ctrl+C):
+
+```bash
+boot-preview animation --foreground
+```
+
+---
 
 ## Instalación
 
