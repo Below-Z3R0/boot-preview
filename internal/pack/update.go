@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
@@ -47,8 +48,13 @@ func hasRemote(dir string) bool {
 func updateFromGit(paths cli.ToolPaths) error {
 	before := gitHead(paths.Repo)
 	if out, err := cli.RunCombined("git", "-C", paths.Repo, "pull", "--ff-only"); err != nil {
-		cli.Warn("git pull falló (¿cambios locales?)")
-		cli.Say("%s", out)
+		cli.Warn("No se pudo actualizar: el repo tiene cambios locales.")
+		cli.Say("%s", strings.TrimSpace(out))
+		cli.Say("")
+		cli.Say("Para actualizar sin perderlos:")
+		cli.Say("    git -C %s stash       # guarda los cambios", paths.Repo)
+		cli.Say("    boot-preview update    # trae la versión nueva")
+		cli.Say("    git -C %s stash pop   # los recupera", paths.Repo)
 		return nil
 	}
 
