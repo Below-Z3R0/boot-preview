@@ -173,9 +173,9 @@ Medido en esta máquina (8 núcleos, QEMU con KVM):
 
 | Operación | Antes | Ahora | Cómo |
 |---|---|---|---|
-| `loader shot` (captura) | 15.6 s | **2.8-3.1 s** | polling del framebuffer en vez de `sleep 15` fijo |
-| `make-wallpaper` (resize + blur) | 0.9 s | **0.2-0.4 s** | vips (libvips) en vez de ImageMagick |
-| `prepare-wallpapers` (2 versiones) | ~2 s | **0.9 s** | idem |
+| `loader shot` (captura) | 15.6 s | **2.8-3.3 s** | polling del framebuffer en vez de `sleep 15` fijo |
+| `loader add --blur` (resize + blur) | 0.9 s | **0.2-0.4 s** | vips (libvips) en vez de ImageMagick |
+| `loader wallpapers` (2 versiones) | ~2 s | **0.9 s** | idem |
 | `animation` (ventana) | ~30 s (VM) | **~3 s** | el renderer X11, sin initramfs ni QEMU |
 | `animation shot` | ~40 s (VM) | **10.5 s** | 3 s de arranque + 4 s de muestreo |
 
@@ -597,19 +597,19 @@ renderiza nada: solo la muestra. El desenfoque se aplica antes, a la imagen.
 
 ```bash
 # genera las dos versiones de una
-prepare-wallpapers
+boot-preview loader wallpapers
 ```
 
 | Fichero | Qué es |
 |---|---|
 | `rei.png` | la fuente, sin blur |
 | `rei-blur.png` | la misma, **ya con el blur aplicado** |
-| `wallpaper.png` | **la activa**: la que usan el preview y `apply`. `prepare-wallpapers` deja acá la difuminada |
+| `wallpaper.png` | **la activa**: la que usan el preview y `apply`. `loader wallpapers` deja acá la difuminada |
 
 ### El pipeline de cada una
 
 ```bash
-make-wallpaper IMAGEN -o SALIDA [opciones]
+boot-preview loader add IMAGEN [--blur 0x30] [--dim 0.4] [--res 1920x1080]
 ```
 
 | Orden | Qué hace |
@@ -620,11 +620,11 @@ make-wallpaper IMAGEN -o SALIDA [opciones]
 
 ```bash
 # la real (nítida)
-make-wallpaper examples/wallpaper/rei.png -o /tmp/real.png --res 1920x1080
+boot-preview loader add examples/wallpaper/rei.png --res 1920x1080
 
 # la difuminada: la imagen ya viene con el blur aplicado
-make-wallpaper examples/wallpaper/rei.png -o /tmp/blur.png \
-  --res 1920x1080 --blur 0x30
+boot-preview loader add examples/wallpaper/rei.png \
+  --res 1920x1080 --blur 0x30 --dim 0.4
 ```
 
 > Para el **upscale con IA** va primero [Upscayl](https://github.com/upscayl/upscayl)

@@ -17,9 +17,30 @@ import (
 // blur se aplica ANTES, y lo que llega a Limine ya viene difuminado.
 func cmdWallpapers(opts options, paths cli.ToolPaths) error {
 	wallDir := filepath.Join(paths.LoaderConfig(), "wallpaper")
+
+	// La fuente: la que instaló el instalador. Si no esta (porque el
+	// usuario no instalo el modulo loader), se usa la que esta en los
+	// assets, al lado del binario.
 	src := filepath.Join(wallDir, "rei.png")
 	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("no hay wallpaper de ejemplo en %s", src)
+		// Los assets instalados, y los que vienen con el bundle (al
+		// lado del binario).
+		candidatas := []string{
+			filepath.Join(paths.Lib, "assets", "wallpaper", "rei.png"),
+		}
+		if exe, err := os.Executable(); err == nil {
+			candidatas = append(candidatas,
+				filepath.Join(filepath.Dir(exe), "assets", "wallpaper", "rei.png"))
+		}
+		for _, candidata := range candidatas {
+			if _, err := os.Stat(candidata); err == nil {
+				src = candidata
+				break
+			}
+		}
+	}
+	if _, err := os.Stat(src); err != nil {
+		return fmt.Errorf("no hay wallpaper de ejemplo: instalá el modulo loader (boot-preview install loader)")
 	}
 
 	cli.Step("La real (más detalle, sin blur)")
@@ -34,9 +55,17 @@ func cmdWallpapers(opts options, paths cli.ToolPaths) error {
 		return err
 	}
 
+	// La difuminada queda como la activa: es la que usan el preview y el
+	// `apply`. La nitida se deja a mano para el que la prefiera.
+	active := filepath.Join(wallDir, "wallpaper.png")
+	if err := cli.CopyFile(blurred, active); err != nil {
+		return err
+	}
+
 	fmt.Println()
 	cli.Say("  %s", real)
 	cli.Say("  %s", blurred)
+	cli.Say("  %s (la activa)", active)
 	fmt.Println()
 	cli.Say("  La difuminada quedo como la activa (wallpaper.png):")
 	cli.Say("      boot-preview loader                  → preview con ella")
