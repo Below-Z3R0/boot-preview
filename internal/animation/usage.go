@@ -20,7 +20,6 @@ VER
                          la terminal
   x11 [segundos]         Idem, con límite de tiempo
   x11 --foreground       Idem, pero el comando espera (Ctrl+C para salir)
-  stop                   Cerrar el daemon de Plymouth
 
 CAPTURAR
   shot [archivo]         Captura el splash a un PNG + contact sheet.
@@ -32,10 +31,17 @@ ACCESO
                          error: plymouthd exige root y root necesita
                          permiso de X.
 
-CONTROLAR EL DAEMON
-  (o con boot-preview plymouth)
-  stop                   Cerrar el daemon
-                         status, show, hide, reload, update, quit...
+EL DAEMON
+  status                 Si el daemon corre y qué tema muestra
+  ping                   Si el daemon responde
+  show                   Mostrar el splash
+  hide                   Ocultarlo
+  reload                 Recargar el tema (después de editar un PNG)
+  update <texto>         Cambiar el mensaje de estado ("Iniciando...")
+  pause                  Pausar la barra de progreso
+  unpause                Reanudarla
+  error                  Reportar un error de arranque
+  stop                   Cerrar el daemon (igual que quit)
 
 TEMAS
   sources                Los temas de Plymouth instalados
@@ -55,8 +61,9 @@ EJEMPLOS
   boot-preview animation
   boot-preview animation access
   boot-preview animation shot
+  boot-preview animation status
+  boot-preview animation reload
   boot-preview animation sources
-  boot-preview animation steam-convert
 
 AJUSTES DE LA CONVERSIÓN
   STEAM_FPS=15 STEAM_RES=1280x720 boot-preview animation steam-convert

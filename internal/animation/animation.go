@@ -39,6 +39,8 @@ func Run(args []string, paths cli.Paths) error {
 	if len(args) > 0 {
 		switch args[0] {
 		case "x11", "shot", "access", "sources", "preview", "use", "stop",
+			"status", "ping", "show", "hide", "reload", "update", "pause",
+			"unpause", "error", "quit",
 			"steam-source", "steam-convert", "steam-apply", "help", "-h", "--help":
 			cmd = args[0]
 			rest = args[1:]
@@ -56,8 +58,12 @@ func Run(args []string, paths cli.Paths) error {
 		return cmdShot(rest, paths)
 	case "access":
 		return cmdAccess()
-	case "stop":
+	case "stop", "quit":
 		return cmdStop()
+	case "status", "ping", "show", "hide", "reload", "update", "pause", "unpause", "error":
+		// El wrapper recibe los args completos: el propio subcomando es
+		// lo que tiene que interpretar.
+		return runDaemonCommands(args)
 	case "sources":
 		return cmdSources(paths)
 	case "preview":

@@ -7,13 +7,13 @@
 // Este paquete los expone con nombres claros y hace que funcionen sin
 // sudo cuando el daemon ya corre como root:
 //
-//	boot-preview plymouth status     # ¿está vivo? ¿qué tema muestra?
-//	boot-preview plymouth show       # mostrar el splash
-//	boot-preview plymouth hide       # ocultarlo
-//	boot-preview plymouth reload     # recargar el tema (tras editar un PNG)
-//	boot-preview plymouth update "..."  # cambiar el mensaje de estado
-//	boot-preview plymouth quit       # cerrar el daemon
-package plymouth
+//	boot-preview animation status     # ¿está vivo? ¿qué tema muestra?
+//	boot-preview animation show       # mostrar el splash
+//	boot-preview animation hide       # ocultarlo
+//	boot-preview animation reload     # recargar el tema (tras editar un PNG)
+//	boot-preview animation update "..."  # cambiar el mensaje de estado
+//	boot-preview animation quit       # cerrar el daemon
+package animation
 
 import (
 	"fmt"
@@ -24,41 +24,41 @@ import (
 )
 
 // Run ejecuta el comando plymouth.
-func Run(args []string) error {
+func runDaemonCommands(args []string) error {
 	if len(args) == 0 {
-		usage()
+		daemonUsage()
 		return nil
 	}
 
 	switch args[0] {
 	case "status":
-		return status()
+		return daemonStatus()
 	case "ping":
-		return ping()
+		return daemonPing()
 	case "show", "show-splash":
-		return call("--show-splash")
+		return daemonCall("--show-splash")
 	case "hide", "hide-splash":
-		return call("--hide-splash")
+		return daemonCall("--hide-splash")
 	case "reload":
-		return call("reload")
+		return daemonCall("reload")
 	case "quit":
-		return call("--quit")
+		return daemonCall("--quit")
 	case "update":
 		if len(args) < 2 {
-			return fmt.Errorf("falta el mensaje: boot-preview plymouth update \"Iniciando...\"")
+			return fmt.Errorf("falta el mensaje: boot-preview animation update \"Iniciando...\"")
 		}
-		return call("--update=" + strings.Join(args[1:], " "))
+		return daemonCall("--update=" + strings.Join(args[1:], " "))
 	case "pause":
-		return call("pause-progress")
+		return daemonCall("pause-progress")
 	case "unpause":
-		return call("unpause-progress")
+		return daemonCall("unpause-progress")
 	case "error":
-		return call("report-error")
+		return daemonCall("report-error")
 	case "help", "-h", "--help":
-		usage()
+		daemonUsage()
 		return nil
 	default:
-		return fmt.Errorf("opción desconocida: %s (probá: boot-preview plymouth --help)", args[0])
+		return fmt.Errorf("opción desconocida: %s (probá: boot-preview animation --help)", args[0])
 	}
 }
 
@@ -71,7 +71,7 @@ func Run(args []string) error {
 // El comando va con timeout: hay algunos que esperan una tecla
 // (display-message, ask-for-password) y sin timeout la terminal queda
 // colgada.
-func call(args ...string) error {
+func daemonCall(args ...string) error {
 	full := append([]string{"timeout", "5", "plymouth"}, args...)
 	out, err := cli.RunCombined("sudo", append([]string{"--preserve-env=DISPLAY,XAUTHORITY"}, full...)...)
 	if err != nil {
@@ -86,7 +86,7 @@ func call(args ...string) error {
 }
 
 // ping dice si el daemon está vivo.
-func ping() error {
+func daemonPing() error {
 	out, err := cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
 	if err != nil {
 		cli.Warn("El daemon de Plymouth no está corriendo")
@@ -98,7 +98,7 @@ func ping() error {
 }
 
 // status muestra el estado del daemon: si corre, y qué tema muestra.
-func status() error {
+func daemonStatus() error {
 	cli.Step("Estado de Plymouth")
 
 	// El daemon responde al ping con 0 si está vivo.
@@ -129,11 +129,11 @@ func status() error {
 	return nil
 }
 
-func usage() {
-	fmt.Print(`boot-preview plymouth — controlar el daemon de Plymouth
+func daemonUsage() {
+	fmt.Print(`boot-preview animation — controlar el daemon de Plymouth
 
 USO
-  boot-preview plymouth <comando> [texto]
+  boot-preview animation <comando> [texto]
 
 ESTADO
   status            Si el daemon corre y qué tema muestra
@@ -160,9 +160,9 @@ password) no están: bloquearían la terminal. Para el prompt de
 contraseña hay que usar el comando de Plymouth directo.
 
 EJEMPLOS
-  boot-preview plymouth status
-  boot-preview plymouth update "Cargando el kernel"
-  boot-preview plymouth reload
-  boot-preview plymouth quit
+  boot-preview animation status
+  boot-preview animation update "Cargando el kernel"
+  boot-preview animation reload
+  boot-preview animation quit
 `)
 }

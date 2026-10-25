@@ -20,7 +20,6 @@ import (
 	"github.com/Below-Z3R0/boot-preview/internal/install"
 	"github.com/Below-Z3R0/boot-preview/internal/loader"
 	"github.com/Below-Z3R0/boot-preview/internal/pack"
-	"github.com/Below-Z3R0/boot-preview/internal/plymouth"
 	"github.com/Below-Z3R0/boot-preview/internal/verify"
 )
 
@@ -61,8 +60,6 @@ func run(args []string) error {
 		return pack.Hooks(rest, paths)
 	case "bundle":
 		return pack.Bundle(paths)
-	case "plymouth":
-		return plymouth.Run(rest)
 	case "version", "--version":
 		fmt.Printf("boot-preview %s\n", version)
 		return nil
@@ -93,11 +90,6 @@ HERRAMIENTAS
               Usa el plymouthd oficial con el renderer X11: dibuja en
               una ventana sobre tu escritorio. Sin VM, sin initramfs.
 
-  plymouth    Controlar el daemon de Plymouth
-              status, show, hide, reload, update, quit... El daemon
-              queda en background: la ventana sobrevive al cierre de
-              la terminal.
-
 INSTALACIÓN Y MANTENIMIENTO
   install [loader|animation]  Instala el tool (o solo una parte)
   verify                       Verifica que todo esté en su sitio
@@ -114,7 +106,6 @@ EJEMPLOS
   boot-preview loader shot         # captura del menú a PNG
   boot-preview animation           # ventana con el splash (en background)
   boot-preview animation shot      # captura del splash a PNG
-  boot-preview plymouth status     # estado del daemon de Plymouth
   boot-preview install animation   # instalar solo el módulo de Plymouth
 `)
 }

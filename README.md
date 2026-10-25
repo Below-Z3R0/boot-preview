@@ -8,12 +8,11 @@ Son dos pantallas distintas, en dos momentos distintos:
 |---|---|---|
 | **`loader`** | El **menú de Limine**, el bootloader | Elegís qué booteás |
 | **`animation`** | El **splash de Plymouth**, la animación | Arranca el kernel |
-| **`plymouth`** | Controlar el **daemon** de Plymouth | Mientras el splash corre |
 
 ```bash
 boot-preview loader      # el menú
 boot-preview animation   # la animación (el daemon queda en background)
-boot-preview plymouth    # controlar el daemon de Plymouth
+boot-preview animation    # controlar el daemon de Plymouth
 ```
 
 ## El menú de Limine (`loader`)
@@ -208,12 +207,12 @@ devuelve el control y la ventana sigue viva aunque cierres la terminal.
 Para controlarlo, el propio tool:
 
 ```bash
-boot-preview plymouth status          # ¿está vivo? ¿qué tema muestra?
-boot-preview plymouth show            # mostrar el splash
-boot-preview plymouth hide            # ocultarlo
-boot-preview plymouth reload          # recargar tras editar un PNG
-boot-preview plymouth update "Cargando"  # cambiar el mensaje de estado
-boot-preview plymouth quit            # cerrar el daemon
+boot-preview animation status          # ¿está vivo? ¿qué tema muestra?
+boot-preview animation show            # mostrar el splash
+boot-preview animation hide            # ocultarlo
+boot-preview animation reload          # recargar tras editar un PNG
+boot-preview animation update "Cargando"  # cambiar el mensaje de estado
+boot-preview animation stop            # cerrar el daemon
 ```
 
 El wrapper cubre los comandos de Plymouth con nombres claros y pone un
