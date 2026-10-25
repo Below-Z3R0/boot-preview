@@ -58,7 +58,7 @@ func x11RootAccess() bool {
 
 // cmdStop cierra el daemon de Plymouth.
 //
-// Es lo mismo que `boot-preview plymouth quit`, pero desde el módulo de
+// Es lo mismo que `boot-preview animation stop`, pero desde el módulo de
 // animación: el preview y su daemon son la misma cosa.
 func cmdStop() error {
 	cli.Step("Cerrando Plymouth")

@@ -27,7 +27,7 @@ import (
 // cmdX11 abre la ventana con el splash.
 func cmdX11(args []string, paths cli.Paths) error {
 	// El daemon queda en background: el comando devuelve el control y la
-	// ventana sigue viva. Se cierra con 'boot-preview plymouth quit'.
+	// ventana sigue viva. Se cierra con 'boot-preview animation stop'.
 	//
 	// Un límite de tiempo es opcional: con él, el preview se cierra solo.
 	seconds := 0
@@ -117,12 +117,10 @@ func cmdX11(args []string, paths cli.Paths) error {
 	cli.Say("cierres la terminal.")
 	fmt.Println()
 	cli.Say("Para controlarlo:")
-	cli.Say("  boot-preview plymouth status      # ver el estado")
-	cli.Say("  boot-preview plymouth reload      # recargar tras editar un PNG")
-	cli.Say("  boot-preview plymouth update '...' # cambiar el mensaje")
-	cli.Say("  boot-preview plymouth quit        # cerrar el daemon")
-	fmt.Println()
-	cli.Say("Para cerrarlo también:  boot-preview animation stop")
+	cli.Say("  boot-preview animation status      # ver el estado")
+	cli.Say("  boot-preview animation reload      # recargar tras editar un PNG")
+	cli.Say("  boot-preview animation update '...' # cambiar el mensaje")
+	cli.Say("  boot-preview animation stop        # cerrar el daemon")
 	return nil
 }
 
@@ -142,4 +140,4 @@ type plymouthProcess struct {
 //
 // Se hace con setsid: el proceso se pone en su propia sesión, y con
 // eso deja de recibir el SIGHUP de la terminal. El PID se anota para
-// poder controlarlo después con 'boot-preview plymouth'.
+// poder controlarlo después con 'boot-preview animation'.
