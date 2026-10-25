@@ -56,9 +56,16 @@ func daemonRunning() bool {
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
-// StopPlymouth cierra el daemon de Plymouth.
+// StopPlymouth cierra el daemon de Plymouth y limpia lo que dejó.
 //
 // Lo usan 'boot-preview animation stop' y el wrapper de plymouth.
+//
+// El daemon corre dentro de un namespace de mounts, con un wrapper de
+// sudo delante. Matar al plymouthd alcanza, pero el wrapper se queda
+// esperando: se mata el grupo de procesos entero.
+//
+// También borra el tema de /run y la config temporal: con el daemon
+// desacoplado, el comando que lo arrancó ya retornó y no limpió nada.
 func StopPlymouth() error {
 	// Si hay un PID anotado, se usa.
 	if data, err := os.ReadFile(pidFilePath()); err == nil {
@@ -74,7 +81,50 @@ func StopPlymouth() error {
 
 	// Y por las dudas, el comando propio de Plymouth.
 	_, _ = cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--quit")
+
+	// La limpieza de lo que dejó el daemon: el tema copiado a /run y la
+	// config temporal montada sobre /etc/plymouth.
+	cleanupPreviewFiles()
 	return nil
+}
+
+// cleanupPreviewFiles borra el tema de /run y las configs temporales.
+//
+// El daemon desacoplado deja estas cosas: su comando ya retornó, asi que
+// no hay nadie que las limpie.
+func cleanupPreviewFiles() {
+	// Las configs temporales: el nombre empieza con el prefijo que usa
+	// el preview.
+	//
+	// Es /tmp y no os.TempDir(): el daemon las crea en /tmp (el script
+	// corre como root y TMPDIR no lo tiene), así que ahí hay que
+	// buscarlas.
+	matches, _ := filepath.Glob("/tmp/boot-preview-animation-etc.*")
+	for _, dir := range matches {
+		_ = os.RemoveAll(dir)
+	}
+
+	// El tema en /run: solo el que copió el preview. Los que ya estaban
+	// (los del sistema) no se tocan.
+	entries, err := os.ReadDir("/run/plymouth/themes")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		// El preview copia el tema tal cual: si su .plymouth dice que
+		// fue generado desde un video, es del preview.
+		ply := filepath.Join("/run/plymouth/themes", entry.Name(), entry.Name()+".plymouth")
+		data, err := os.ReadFile(ply)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(data), "Generado desde") {
+			_, _ = cli.RunCombined("sudo", "rm", "-rf", filepath.Join("/run/plymouth/themes", entry.Name()))
+		}
+	}
 }
 
 // alive dice si el proceso sigue corriendo.
@@ -150,7 +200,9 @@ func startPlymouthX11(theme string, paths cli.ToolPaths) (*plymouthProcess, erro
 
 	// La config propia, montada sobre /etc/plymouth en un namespace
 	// privado: el sistema NO se toca.
-	etcDir, err := os.MkdirTemp("", "boot-preview-animation-etc.*")
+	// En /tmp y no en os.TempDir(): el daemon la monta como root, y
+	// TMPDIR puede no estar en su entorno.
+	etcDir, err := os.MkdirTemp("/tmp", "boot-preview-animation-etc.*")
 	if err != nil {
 		return nil, err
 	}
