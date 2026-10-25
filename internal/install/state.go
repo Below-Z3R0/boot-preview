@@ -25,7 +25,7 @@ type state struct {
 	Repo       string            `json:"repo"`
 }
 
-func writeState(paths cli.Paths, what string) error {
+func writeState(paths cli.ToolPaths, what string) error {
 	cli.Step("4/4  Estado")
 
 	deps := map[string]string{}

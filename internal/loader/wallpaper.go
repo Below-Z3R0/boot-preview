@@ -15,7 +15,7 @@ import (
 //
 // Limine NO puede difuminar una imagen: la dibuja tal cual. Así que el
 // blur se aplica ANTES, y lo que llega a Limine ya viene difuminado.
-func cmdWallpapers(opts options, paths cli.Paths) error {
+func cmdWallpapers(opts options, paths cli.ToolPaths) error {
 	wallDir := filepath.Join(paths.LoaderConfig(), "wallpaper")
 	src := filepath.Join(wallDir, "rei.png")
 	if _, err := os.Stat(src); err != nil {

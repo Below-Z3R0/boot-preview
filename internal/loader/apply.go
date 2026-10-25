@@ -20,7 +20,7 @@ import (
 // NO toca /etc/default/limine: ese es el origen, y Limine lo compila con
 // limine-mkinitcpio. Reescribir el conf real directamente es lo que
 // permite iterar sin recompilar el initramfs entero.
-func cmdApply(opts options, paths cli.Paths) error {
+func cmdApply(opts options, paths cli.ToolPaths) error {
 	needWallpaper := opts.applyWhat == "all" || opts.applyWhat == "wallpaper"
 	needConfig := opts.applyWhat == "all" || opts.applyWhat == "config"
 
@@ -95,7 +95,7 @@ func pruneBackups(prefix string, keep int) {
 }
 
 // applyThemeBlock inyecta el bloque de theming en /boot/limine.conf.
-func applyThemeBlock(paths cli.Paths) error {
+func applyThemeBlock(paths cli.ToolPaths) error {
 	previewPath := filepath.Join(paths.LoaderConfig(), "limine.conf")
 
 	if _, err := os.Stat("/boot/limine.conf"); err != nil {

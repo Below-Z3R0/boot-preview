@@ -34,7 +34,7 @@ func systemTheme() string {
 
 // previewTheme es el tema que usa el preview (o el del sistema, si el
 // usuario no eligió otro).
-func previewTheme(paths cli.Paths) string {
+func previewTheme(paths cli.ToolPaths) string {
 	data, err := os.ReadFile(filepath.Join(paths.AnimationConfig(), "theme"))
 	if err != nil {
 		return systemTheme()

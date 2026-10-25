@@ -1,5 +1,13 @@
-// Package cli tiene la base compartida por todos los comandos: los colores
-// de la salida, las rutas de la configuración y los helpers de sistema.
+// Package cli tiene lo que todos los comandos comparten.
+//
+// Son tres cosas:
+//
+//   - la salida: los colores y los mensajes (Say, Step, Ok, Warn)
+//   - las rutas: dónde está la config, el binario y las capturas (ToolPaths)
+//   - el sistema: correr comandos, copiar archivos, medir tamaños
+//
+// Los paths son de boot-preview, no genéricos: si el tool se renombra o
+// cambia de layout, se cambia acá y en un solo lugar.
 package cli
 
 import (
@@ -58,7 +66,7 @@ func Green(s string) string {
 // ── Rutas ───────────────────────────────────────────────────────────────────
 
 // Paths son las rutas que usa el tool.
-type Paths struct {
+type ToolPaths struct {
 	// Config es ~/.config/boot-preview
 	Config string
 	// Repo es la ruta del repo clonado (vacía si no está).
@@ -84,14 +92,14 @@ func Home() string {
 }
 
 // NewPaths arma las rutas a partir del entorno.
-func NewPaths() Paths {
+func NewPaths() ToolPaths {
 	home := Home()
 	configHome := os.Getenv("XDG_CONFIG_HOME")
 	if configHome == "" {
 		configHome = filepath.Join(home, ".config")
 	}
 
-	p := Paths{
+	p := ToolPaths{
 		Config: filepath.Join(configHome, "boot-preview"),
 		Bin:    filepath.Join(home, ".local", "bin"),
 		Lib:    filepath.Join(home, ".local", "lib", "boot-preview"),
@@ -142,16 +150,16 @@ func isRepo(dir string) bool {
 }
 
 // LoaderConfig es la carpeta de configuración del módulo de Limine.
-func (p Paths) LoaderConfig() string { return filepath.Join(p.Config, "loader") }
+func (p ToolPaths) LoaderConfig() string { return filepath.Join(p.Config, "loader") }
 
 // AnimationConfig es la carpeta de configuración del módulo de Plymouth.
-func (p Paths) AnimationConfig() string { return filepath.Join(p.Config, "animation") }
+func (p ToolPaths) AnimationConfig() string { return filepath.Join(p.Config, "animation") }
 
 // PreviewsRoot es la carpeta base donde van las capturas.
 //
 // Es el repo si hay uno; si el tool se instaló desde el bundle (sin repo)
 // es ~/.local/share/boot-preview.
-func (p Paths) PreviewsRoot() string {
+func (p ToolPaths) PreviewsRoot() string {
 	if p.Repo != "" {
 		return p.Repo
 	}
@@ -163,10 +171,12 @@ func (p Paths) PreviewsRoot() string {
 }
 
 // LoaderPreviews es la carpeta de capturas del menú de Limine.
-func (p Paths) LoaderPreviews() string { return filepath.Join(p.PreviewsRoot(), "previews", "loader") }
+func (p ToolPaths) LoaderPreviews() string {
+	return filepath.Join(p.PreviewsRoot(), "previews", "loader")
+}
 
 // AnimationPreviews es la carpeta de capturas del splash de Plymouth.
-func (p Paths) AnimationPreviews() string {
+func (p ToolPaths) AnimationPreviews() string {
 	return filepath.Join(p.PreviewsRoot(), "previews", "animation")
 }
 

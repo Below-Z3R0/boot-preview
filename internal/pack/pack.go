@@ -12,10 +12,10 @@ import (
 )
 
 // Update trae la última versión del tool.
-func Update(paths cli.Paths) error { return update(paths) }
+func Update(paths cli.ToolPaths) error { return update(paths) }
 
 // Hooks instala o quita el hook de pacman.
-func Hooks(args []string, paths cli.Paths) error { return hooks(args, paths) }
+func Hooks(args []string, paths cli.ToolPaths) error { return hooks(args, paths) }
 
 // Bundle arma el paquete descargable.
-func Bundle(paths cli.Paths) error { return bundle(paths) }
+func Bundle(paths cli.ToolPaths) error { return bundle(paths) }

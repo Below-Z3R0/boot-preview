@@ -45,7 +45,7 @@ Exec = /usr/local/bin/boot-preview hooks notify
 `
 
 // Hooks instala o quita el hook de pacman.
-func hooks(args []string, paths cli.Paths) error {
+func hooks(args []string, paths cli.ToolPaths) error {
 	action := "install"
 	if len(args) > 0 {
 		action = args[0]

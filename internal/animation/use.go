@@ -13,7 +13,7 @@ import (
 // ── preview / use ───────────────────────────────────────────────────────────
 
 // cmdPreview cambia el tema SOLO del preview.
-func cmdPreview(args []string, paths cli.Paths) error {
+func cmdPreview(args []string, paths cli.ToolPaths) error {
 	if len(args) == 0 || args[0] == "" {
 		cli.Say("Falta el nombre del tema")
 		return cmdSources(paths)
@@ -38,7 +38,7 @@ func cmdPreview(args []string, paths cli.Paths) error {
 }
 
 // cmdUse aplica el tema al SISTEMA (regenera el initramfs).
-func cmdUse(args []string, paths cli.Paths) error {
+func cmdUse(args []string, paths cli.ToolPaths) error {
 	if len(args) == 0 || args[0] == "" {
 		cli.Say("Falta el nombre del tema")
 		return cmdSources(paths)

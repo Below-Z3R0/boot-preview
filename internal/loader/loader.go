@@ -85,7 +85,7 @@ type options struct {
 }
 
 // Run ejecuta el comando loader.
-func Run(args []string, paths cli.Paths) error {
+func Run(args []string, paths cli.ToolPaths) error {
 	opts := options{
 		command:    "preview",
 		wallpaper:  filepath.Join(paths.LoaderConfig(), "wallpaper", "wallpaper.png"),

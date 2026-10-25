@@ -1,18 +1,17 @@
-// Package plymouth envuelve el cliente de Plymouth.
+// Controlar el daemon de Plymouth.
 //
 // Plymouth trae un binario aparte ('plymouth') que habla con el daemon
-// por un socket. Los comandos son crípticos y hay que acordarse de
-// acordarse de 'sudo'.
+// por un socket. Los comandos son crípticos y hay que acordarse del
+// 'sudo'.
 //
-// Este paquete los expone con nombres claros y hace que funcionen sin
-// sudo cuando el daemon ya corre como root:
+// Acá se exponen con nombres claros, dentro del comando 'animation':
 //
-//	boot-preview animation status     # ¿está vivo? ¿qué tema muestra?
-//	boot-preview animation show       # mostrar el splash
-//	boot-preview animation hide       # ocultarlo
-//	boot-preview animation reload     # recargar el tema (tras editar un PNG)
-//	boot-preview animation update "..."  # cambiar el mensaje de estado
-//	boot-preview animation quit       # cerrar el daemon
+//	boot-preview animation status       # ¿está vivo? ¿qué tema muestra?
+//	boot-preview animation show         # mostrar el splash
+//	boot-preview animation hide         # ocultarlo
+//	boot-preview animation reload       # recargar (tras editar un PNG)
+//	boot-preview animation update "..." # cambiar el mensaje de estado
+//	boot-preview animation stop         # cerrar el daemon
 package animation
 
 import (

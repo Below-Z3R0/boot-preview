@@ -19,7 +19,7 @@ const injectComment = "# ── inyectado por boot-preview loader ──"
 // ── El preview ──────────────────────────────────────────────────────────────
 
 // cmdPreview abre el menú en una ventana.
-func cmdPreview(opts options, paths cli.Paths) error {
+func cmdPreview(opts options, paths cli.ToolPaths) error {
 	if err := checkRequirements(opts); err != nil {
 		return err
 	}

@@ -13,7 +13,7 @@ import (
 // ── add / edit ──────────────────────────────────────────────────────────────
 
 // cmdAdd pone una imagen como wallpaper del preview.
-func cmdAdd(opts options, paths cli.Paths) error {
+func cmdAdd(opts options, paths cli.ToolPaths) error {
 	if _, err := os.Stat(opts.addImage); err != nil {
 		return fmt.Errorf("no existe: %s", opts.addImage)
 	}
@@ -51,7 +51,7 @@ func cmdAdd(opts options, paths cli.Paths) error {
 }
 
 // cmdEdit abre la config del preview en un editor.
-func cmdEdit(opts options, paths cli.Paths) error {
+func cmdEdit(opts options, paths cli.ToolPaths) error {
 	editor := os.Getenv("VISUAL_EDITOR")
 	if editor == "" {
 		editor = os.Getenv("EDITOR")

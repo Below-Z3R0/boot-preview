@@ -9,7 +9,7 @@ import (
 
 // ── El binario y los assets ──────────────────────────────────────────────────
 
-func installBinaries(paths cli.Paths, wantLoader, wantAnimation bool) error {
+func installBinaries(paths cli.ToolPaths, wantLoader, wantAnimation bool) error {
 	cli.Step("2/4  Los scripts")
 
 	if err := os.MkdirAll(paths.Bin, 0o755); err != nil {
@@ -69,7 +69,7 @@ func installBinaries(paths cli.Paths, wantLoader, wantAnimation bool) error {
 }
 
 // installBinary copia el binario compilado a su destino.
-func installBinary(paths cli.Paths, name, dest string) error {
+func installBinary(paths cli.ToolPaths, name, dest string) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func installBinary(paths cli.Paths, name, dest string) error {
 }
 
 // installSudoShim deja un wrapper en /usr/local/bin.
-func installSudoShim(paths cli.Paths) error {
+func installSudoShim(paths cli.ToolPaths) error {
 	const shim = `#!/usr/bin/env bash
 # Wrapper de boot-preview para poder correrlo con ` + "`sudo`" + `.
 # ` + "`sudo boot-preview`" + ` falla con "command not found" porque ~/.local/bin

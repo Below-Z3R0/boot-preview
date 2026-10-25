@@ -25,7 +25,7 @@ import (
 // ── El preview en X11 ───────────────────────────────────────────────────────
 
 // cmdX11 abre la ventana con el splash.
-func cmdX11(args []string, paths cli.Paths) error {
+func cmdX11(args []string, paths cli.ToolPaths) error {
 	// El daemon queda en background: el comando devuelve el control y la
 	// ventana sigue viva. Se cierra con 'boot-preview animation stop'.
 	//

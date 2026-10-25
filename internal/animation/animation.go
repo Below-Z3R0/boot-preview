@@ -7,13 +7,24 @@
 //
 // El paquete se divide por comando:
 //
-//	animation.go  el dispatcher: parsea los argumentos y elige comando
-//	theme.go      los temas: cuál está activo, cuál se previsualiza
-//	sources.go    listar los temas instalados
-//	use.go        aplicar un tema al sistema
-//	x11.go        el preview: la ventana con el splash
-//	shot.go       la captura de la ventana
-//	steam.go      los videos de startup de Steam
+//	animation.go       el dispatcher: parsea los argumentos y elige comando
+//	x11.go             el preview: la ventana con el splash
+//	daemon.go          el ciclo de vida del daemon (arrancar, parar)
+//	daemon_commands.go controlarlo: status, show, reload, update...
+//	splash.go          hablar con el daemon
+//	env.go             el entorno que se le pasa al daemon
+//	log.go             el log del daemon
+//	shot.go            la captura de la ventana
+//	access.go          darle a root acceso al servidor X
+//	theme.go           los temas: cuál está activo, cuál se previsualiza
+//	sources.go         listar los temas instalados
+//	use.go             aplicar un tema al sistema
+//	steam_source.go    los videos de startup de Steam
+//	steam_convert.go   convertir un video en tema
+//	convert_video.go   la conversión en sí
+//	detect.go          las propiedades del video (fps, resolución)
+//	script.go          el script de Plymouth que reproduce los frames
+//	name.go            el nombre del tema a partir del video
 package animation
 
 import (
@@ -32,7 +43,7 @@ const (
 	refreshRate = 50
 )
 
-func Run(args []string, paths cli.Paths) error {
+func Run(args []string, paths cli.ToolPaths) error {
 	cmd := "x11"
 	rest := args
 

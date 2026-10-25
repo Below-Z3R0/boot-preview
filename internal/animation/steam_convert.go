@@ -23,7 +23,7 @@ import (
 // El video se convierte a frames PNG con ffmpeg y se arma un tema con el
 // plugin "script" (no "two-step": two-step ata la animación al final del
 // boot y sin un boot real nunca arranca).
-func cmdSteamConvert(args []string, paths cli.Paths, apply bool) error {
+func cmdSteamConvert(args []string, paths cli.ToolPaths, apply bool) error {
 	video := "auto"
 	if len(args) > 0 && args[0] != "" {
 		video = args[0]

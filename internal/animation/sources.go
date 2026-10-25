@@ -14,7 +14,7 @@ import (
 // ── sources ────────────────────────────────────────────────────────────────
 
 // cmdSources lista los temas de Plymouth instalados.
-func cmdSources(paths cli.Paths) error {
+func cmdSources(paths cli.ToolPaths) error {
 	actual := systemTheme()
 	preview := previewTheme(paths)
 

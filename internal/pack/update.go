@@ -19,7 +19,7 @@ const remoteURL = "https://github.com/Below-Z3R0/boot-preview"
 // Hay dos fuentes: si hay un repo local con remote, se actualiza con git
 // (y se reinstalan los scripts). Si no hay repo, se descarga el binario
 // suelto de GitHub.
-func update(paths cli.Paths) error {
+func update(paths cli.ToolPaths) error {
 	cli.Step("Buscando actualizaciones")
 
 	if paths.Repo != "" && isGitRepo(paths.Repo) && hasRemote(paths.Repo) {
@@ -44,7 +44,7 @@ func hasRemote(dir string) bool {
 }
 
 // updateFromGit hace git pull y reinstala.
-func updateFromGit(paths cli.Paths) error {
+func updateFromGit(paths cli.ToolPaths) error {
 	before := gitHead(paths.Repo)
 	if out, err := cli.RunCombined("git", "-C", paths.Repo, "pull", "--ff-only"); err != nil {
 		cli.Warn("git pull falló (¿cambios locales?)")
@@ -67,7 +67,7 @@ func updateFromGit(paths cli.Paths) error {
 }
 
 // updateFromNetwork descarga el binario de GitHub.
-func updateFromNetwork(paths cli.Paths) error {
+func updateFromNetwork(paths cli.ToolPaths) error {
 	if !cli.HaveCommand("curl") {
 		cli.Warn("necesita curl")
 		return fmt.Errorf("")
@@ -109,7 +109,7 @@ func updateFromNetwork(paths cli.Paths) error {
 //
 // El repo es Go: un git pull trae el código nuevo, pero el binario
 // instalado sigue siendo el viejo. Hay que recompilar antes de instalar.
-func reinstall(paths cli.Paths) error {
+func reinstall(paths cli.ToolPaths) error {
 	if paths.Repo == "" {
 		return fmt.Errorf("no hay repo")
 	}

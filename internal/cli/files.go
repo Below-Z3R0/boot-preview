@@ -1,7 +1,3 @@
-// Package cli tiene los helpers compartidos por todos los módulos.
-//
-// Acá vive lo que más de un paquete necesita: correr comandos, leer y
-// escribir archivos, y saber dónde están las cosas.
 package cli
 
 import (

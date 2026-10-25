@@ -16,7 +16,7 @@ import (
 // ── shot ────────────────────────────────────────────────────────────────────
 
 // cmdShot captura el splash a un PNG.
-func cmdShot(args []string, paths cli.Paths) error {
+func cmdShot(args []string, paths cli.ToolPaths) error {
 	out := ""
 	if len(args) > 0 {
 		out = args[0]

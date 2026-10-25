@@ -26,7 +26,7 @@ type state struct {
 }
 
 // Run ejecuta el comando verify.
-func Run(paths cli.Paths) error {
+func Run(paths cli.ToolPaths) error {
 	failed := 0
 	warnings := 0
 

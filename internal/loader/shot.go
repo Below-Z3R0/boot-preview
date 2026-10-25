@@ -13,7 +13,7 @@ import (
 // ── shot ────────────────────────────────────────────────────────────────────
 
 // cmdShot captura el menú a un PNG.
-func cmdShot(opts options, paths cli.Paths) error {
+func cmdShot(opts options, paths cli.ToolPaths) error {
 	if err := checkRequirements(opts); err != nil {
 		return err
 	}

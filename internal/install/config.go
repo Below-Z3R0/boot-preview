@@ -9,7 +9,7 @@ import (
 
 // ── La config ────────────────────────────────────────────────────────────────
 
-func installConfig(paths cli.Paths, wantLoader, wantAnimation bool) error {
+func installConfig(paths cli.ToolPaths, wantLoader, wantAnimation bool) error {
 	cli.Step("3/4  La config")
 
 	if wantLoader {

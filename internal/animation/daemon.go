@@ -120,7 +120,7 @@ func (p *plymouthProcess) cleanup() {
 // El tema va a /run/plymouth/themes, que Plymouth mira ANTES que /usr/share.
 // Y la config se monta sobre /etc/plymouth en un namespace de mounts
 // privado: el sistema NO se toca.
-func startPlymouthX11(theme string, paths cli.Paths) (*plymouthProcess, error) {
+func startPlymouthX11(theme string, paths cli.ToolPaths) (*plymouthProcess, error) {
 	runTheme := filepath.Join("/run/plymouth/themes", theme)
 
 	// El tema a /run.

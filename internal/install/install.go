@@ -19,7 +19,7 @@ import (
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
 
-func Run(args []string, paths cli.Paths) error {
+func Run(args []string, paths cli.ToolPaths) error {
 	what := "all"
 	withDeps := true
 

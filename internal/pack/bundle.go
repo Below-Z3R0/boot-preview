@@ -21,7 +21,7 @@ import (
 //
 //	curl -fsSL .../releases/latest/download/boot-preview.tar.gz | tar xz
 //	&& ./boot-preview/boot-preview install
-func bundle(paths cli.Paths) error {
+func bundle(paths cli.ToolPaths) error {
 	cli.Step("Armando el paquete")
 
 	if paths.Repo == "" {
