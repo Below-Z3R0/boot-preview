@@ -28,19 +28,39 @@ func installBinaries(paths cli.Paths, wantLoader, wantAnimation bool) error {
 	// Los recursos (los ejemplos que el instalador usa) van junto al
 	// binario, en lib/.
 	//
-	// Si no hay repo (el tool se instaló desde el bundle), los assets ya
-	// están instalados y no hay nada que copiar.
+	// Vienen de dos lugares:
+	//   - del repo (desarrollo): examples/
+	//   - del directorio del binario (instalado desde el bundle): assets/
+	//
+	// El bundle trae los assets al lado del binario, así que si se
+	// instala desde ahí no hay repo de donde sacarlos.
 	assets := filepath.Join(paths.Lib, "assets")
 	if err := os.MkdirAll(assets, 0o755); err != nil {
 		return err
 	}
-	if paths.Repo != "" {
-		if err := cli.CopyDir(filepath.Join(paths.Repo, "examples"), assets); err != nil {
+
+	origen := ""
+	switch {
+	case paths.Repo != "":
+		origen = filepath.Join(paths.Repo, "examples")
+	default:
+		// Al lado del binario que se está ejecutando.
+		if exe, err := os.Executable(); err == nil {
+			candidata := filepath.Join(filepath.Dir(exe), "assets")
+			if _, err := os.Stat(candidata); err == nil {
+				origen = candidata
+			}
+		}
+	}
+
+	if origen != "" {
+		if err := cli.CopyDir(origen, assets); err != nil {
 			return err
 		}
-		cli.Ok("%s", assets)
+		cli.Ok("%s (desde %s)", assets, origen)
 	} else {
-		cli.Ok("%s (ya instalados)", assets)
+		cli.Warn("No encuentro los assets (loader.conf, wallpaper)")
+		cli.Say("Sin ellos, `loader` no tiene wallpaper de ejemplo.")
 	}
 
 	// Un shim en /usr/local/bin para que `sudo boot-preview` funcione:
