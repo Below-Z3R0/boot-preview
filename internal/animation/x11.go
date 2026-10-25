@@ -102,10 +102,6 @@ func cmdX11(args []string, paths cli.ToolPaths) error {
 	// El daemon se desacopla: se cierra de su sesión para que no
 	// dependa de la terminal que lo lanzó, y se anota el PID para poder
 	// controlarlo después.
-	if err := proc.detach(); err != nil {
-		proc.cleanup()
-		return err
-	}
 	if err := proc.start(true); err != nil {
 		return err
 	}

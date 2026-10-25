@@ -13,11 +13,6 @@ import (
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
 
-func (p *plymouthProcess) detach() error {
-	// El PID ya lo anota el script del daemon (ver startPlymouthX11).
-	return nil
-}
-
 // pidFilePath es donde se anota el PID del daemon.
 //
 // Es /tmp y no os.TempDir(): si TMPDIR apunta a otro lado (por ejemplo
