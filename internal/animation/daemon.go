@@ -46,6 +46,16 @@ func findPlymouthd() int {
 	return 0
 }
 
+// daemonRunning dice si ya hay un daemon de Plymouth corriendo.
+//
+// Lo usa `animation shot`: si el daemon ya está (porque el usuario dejó
+// la ventana abierta), el shot reutiliza esa ventana en vez de levantar
+// un daemon nuevo. Si no, levanta el suyo.
+func daemonRunning() bool {
+	out, err := cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
+	return err == nil && strings.TrimSpace(out) != ""
+}
+
 // StopPlymouth cierra el daemon de Plymouth.
 //
 // Lo usan 'boot-preview animation stop' y el wrapper de plymouth.

@@ -41,14 +41,33 @@ func cmdShot(args []string, paths cli.Paths) error {
 		return fmt.Errorf("")
 	}
 
-	proc, err := startPlymouthX11(theme, paths)
-	if err != nil {
-		return err
+	// Si ya hay un daemon corriendo (el usuario dejó la ventana
+	// abierta), se reutiliza: levantar otro mataría al primero y la
+	// ventana desaparecería.
+	reusing := daemonRunning()
+
+	var proc *plymouthProcess
+	if reusing {
+		cli.Step("Reutilizando el daemon que ya está corriendo")
+	} else {
+		var err error
+		proc, err = startPlymouthX11(theme, paths)
+		if err != nil {
+			return err
+		}
+		// startPlymouthX11 solo PREPARA el comando: el arranque (y el
+		// show-splash) los hace start().
+		if err := proc.start(false); err != nil {
+			return err
+		}
+		defer proc.cleanup()
 	}
-	defer proc.cleanup()
 
 	// La ventana de Plymouth se llama "plymouthd".
-	wid := findPlymouthWindow()
+	//
+	// El daemon abre la ventana GTK un poco después de arrancar: hay que
+	// esperarla, no buscar una sola vez.
+	wid := waitForPlymouthWindow()
 	if wid == "" {
 		cli.Warn("No encontré la ventana de Plymouth.")
 		printLogTail(x11Log)
@@ -129,6 +148,21 @@ func cmdShot(args []string, paths cli.Paths) error {
 }
 
 // findPlymouthWindow busca la ventana de Plymouth por su nombre.
+
+// waitForPlymouthWindow espera a que aparezca la ventana de Plymouth.
+//
+// El daemon arranca y tarda un poco en abrir la ventana GTK: si se busca
+// una sola vez, justo después de arrancar, puede que no esté todavía.
+func waitForPlymouthWindow() string {
+	for i := 0; i < 20; i++ {
+		if wid := findPlymouthWindow(); wid != "" {
+			return wid
+		}
+		sleep(250 * time.Millisecond)
+	}
+	return ""
+}
+
 func findPlymouthWindow() string {
 	// DISPLAY se pasa explícitamente: xdotool no lo busca por su cuenta y
 	// si el proceso que lo invoca no lo tiene en su entorno, busca en :0.
