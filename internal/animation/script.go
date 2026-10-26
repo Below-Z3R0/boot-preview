@@ -18,9 +18,9 @@ func buildScript(frames []string, fps int) string {
 	b.WriteString("# Animación generada desde un video de Steam.\n")
 	b.WriteString("# Plugin \"script\" de Plymouth: loop libre, no atado al boot real.\n")
 	b.WriteString("#\n")
-	fmt.Fprintf(&b, "# Timing: Plymouth refresca a %d Hz y este script avanza un frame\n", refreshRate)
-	fmt.Fprintf(&b, "# por refresh. Los frames se extrajeron a esa misma tasa, así que\n")
-	fmt.Fprintf(&b, "# el video (que va a %d fps) se ve a su velocidad real.\n", fps)
+	fmt.Fprintf(&b, "# Timing: Plymouth refresca a %d Hz y el video va a %d fps.\n", refreshRate, fps)
+	fmt.Fprintf(&b, "# El script acumula (step = %d/%d) y avanza 0, 1 o 2 frames por\n", refreshRate, fps)
+	b.WriteString("# refresh, asi la duracion es exacta sin duplicar frames.\n")
 	b.WriteString("\n")
 	b.WriteString("frames = [\n")
 	for _, frame := range frames {
@@ -36,10 +36,25 @@ func buildScript(frames []string, fps int) string {
 	b.WriteString("sprite.SetOpacity(1);\n")
 	b.WriteString("\n")
 	b.WriteString("frame = 0;\n")
+	b.WriteString("acc = 0;\n")
+	// Cuántos frames de video tocan por cada refresh de Plymouth. Con
+	// 50 Hz y un video de 30 fps son 1.667: algunos refreshes avanzan 1
+	// frame y otros 2, así la duración es exacta y no hace falta
+	// duplicar frames al extraer.
+	step := float64(refreshRate) / float64(fps)
+	if fps <= 0 || step <= 0 {
+		step = 1
+	}
+	fmt.Fprintf(&b, "step = %.6g;\n", step)
 	b.WriteString("\n")
 	b.WriteString("fun Refresh ()\n")
 	b.WriteString("{\n")
-	fmt.Fprintf(&b, "  frame = (frame + 1) %% %d;\n", len(frames))
+	b.WriteString("  acc = acc + step;\n")
+	b.WriteString("  while (acc >= 1)\n")
+	b.WriteString("  {\n")
+	fmt.Fprintf(&b, "    frame = (frame + 1) %% %d;\n", len(frames))
+	b.WriteString("    acc = acc - 1;\n")
+	b.WriteString("  }\n")
 	b.WriteString("  sprite.SetImage(Image(frames[frame]));\n")
 	b.WriteString("}\n")
 	b.WriteString("\n")

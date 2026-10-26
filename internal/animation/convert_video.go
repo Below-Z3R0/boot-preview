@@ -84,7 +84,7 @@ func convertVideoToTheme(video, name string) error {
 	if content.W < videoW || content.H < videoH {
 		cli.Say("bandas negras: %dx%d -> %dx%d", videoW, videoH, content.W, content.H)
 	}
-	filter := buildVideoFilter(content, outW, outH, refreshRate)
+	filter := buildVideoFilter(content, outW, outH, fps)
 
 	ffmpeg := exec.Command("ffmpeg", "-loglevel", "error", "-y", "-i", video,
 		"-vf", filter, "-start_number", "0", filepath.Join(tmp, "animation-%03d.png"))

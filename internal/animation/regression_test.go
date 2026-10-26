@@ -110,25 +110,49 @@ func TestBuildScriptSinFrames(t *testing.T) {
 	}
 }
 
-// TestBuildScriptAvanzaUnFramePorRefresh verifica el timing.
+// TestBuildScriptAcumulaElPaso verifica el timing fraccionario.
 //
-// Plymouth refresca a 50 Hz y el script avanza 1 frame por refresh: los
-// frames se extraen a 50 fps para que el video se vea a su velocidad.
+// Plymouth refresca a 50 Hz y un video de 30 fps tiene 1.667 frames por
+// refresh: el script acumula y avanza 1 o 2 según corresponda, así la
+// duración es exacta sin duplicar frames al extraer.
 //
-// El bug: el script avanzaba 3 frames de golpe cada 5 refreshes, asi
-// que el ojo veia 10 fps en vez de los 30 del video.
-func TestBuildScriptAvanzaUnFramePorRefresh(t *testing.T) {
+// El bug original (3 frames de golpe cada 5 refreshes) daba 10 fps en
+// vez de 30; el acumulador hace la cuenta bien.
+func TestBuildScriptAcumulaElPaso(t *testing.T) {
 	frames := []string{"a.png", "b.png", "c.png"}
 	script := buildScript(frames, 30)
 
 	if !strings.Contains(script, "frame = (frame + 1)") {
-		t.Errorf("el script no avanza 1 frame por refresh:\n%s", script)
+		t.Errorf("el script no avanza el frame:\n%s", script)
 	}
-	if strings.Contains(script, "tick") {
-		t.Errorf("el script no deberia usar un contador de ticks:\n%s", script)
+	if !strings.Contains(script, "acc = acc + step") {
+		t.Errorf("el script no acumula el paso:\n%s", script)
 	}
-	if !strings.Contains(script, "50") {
-		t.Errorf("el script no menciona la tasa de refresco:\n%s", script)
+	if !strings.Contains(script, "while (acc >= 1)") {
+		t.Errorf("el script no avanza solo cuando corresponde:\n%s", script)
+	}
+	if !strings.Contains(script, "step = 1.66667") {
+		t.Errorf("el paso para 30 fps no es 50/30:\n%s", script)
+	}
+}
+
+// TestBuildScriptStepSegunFps verifica el paso en varios fps.
+func TestBuildScriptStepSegunFps(t *testing.T) {
+	casos := []struct {
+		fps  int
+		step string
+	}{
+		{50, "step = 1;"},
+		{25, "step = 2;"},
+		{15, "step = 3.33333;"},
+		{60, "step = 0.833333;"},
+	}
+
+	for _, c := range casos {
+		s := buildScript([]string{"a.png"}, c.fps)
+		if !strings.Contains(s, c.step) {
+			t.Errorf("con %d fps no aparece %q:\n%s", c.fps, c.step, s)
+		}
 	}
 }
 

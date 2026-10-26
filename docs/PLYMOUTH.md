@@ -360,14 +360,24 @@ Se puede forzar:
 
 | Variable | Default | Para qué |
 |---|---|---|
-| `STEAM_FPS` | el del video | forzar los frames por segundo |
-| `STEAM_RES` | el del video | forzar la resolución |
-| `PLYMOUTH_SCREEN_W` / `_H` | `1920` / `1080` | el tamaño final de los frames (el plugin `script` no puede escalar el sprite) |
+| `STEAM_FPS` | el del video | frames por segundo de los frames extraídos (baja el peso del tema) |
+| `STEAM_RES` | el de la pantalla | tamaño de los frames |
+| `PLYMOUTH_SCREEN_W` / `_H` | detectado | tamaño final de los frames (el plugin `script` no puede escalar el sprite) |
+
+El tamaño de la pantalla sale de `PLYMOUTH_SCREEN_*`; si no están, de
+`xrandr`, y al final `1920×1080`.
 
 Qué hace:
 
-1. `ffmpeg -vf fps=30,crop...,scale=1920x1080:flags=lanczos` → frames PNG.
-   Se descarta el audio.
+1. `ffmpeg -vf fps=<fps>,crop=<rect detectado>,scale=<pantalla>:flags=lanczos`
+   → frames PNG. Se descarta el audio.
+
+   Las **bandas negras se detectan** con `cropdetect` (no por aspecto):
+   un 1920×1200 puede tener el contenido a 16:9 con bandas o llenar los
+   1200 px. Si después del recorte el aspecto todavía no coincide, se
+   recorta lo mínimo para llenar la pantalla **solo si no se pierde más
+   del 12%**: el 1920×1200 de Steam (10%) llena la pantalla; un video
+   cuadrado del Deck (44%) va con barras, sin perder imagen.
 2. Copia los `throbber-*.png` del tema base para el spinner de progreso.
 3. Genera el `script.script` con el plugin `script` (loop libre).
 4. Genera el `.plymouth` con `ModuleName=script`.
@@ -379,8 +389,10 @@ El nombre sale del **nombre real** del item: `steam-elden-ring-ranni`.
 
 | fps | res | frames | tamaño |
 |---|---|---|---|
-| 30 | 1920×1080 | 210 | **133 MB** |
-| 15 | 1280×720 | 105 | **45 MB** |
+| 30 (el del video) | 1920×1080 | 210 | **136.6 MB** |
+| 15 | 1920×1080 | 105 | **68.3 MB** |
+
+Medido con el video de Elden Ring Ranni (1920×1200, 30 fps, 7 s).
 
 Para trabajar cómodo:
 
