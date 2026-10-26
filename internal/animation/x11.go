@@ -52,20 +52,21 @@ func cmdX11(args []string, paths cli.ToolPaths) error {
 	if os.Getenv("DISPLAY") == "" {
 		cli.Warn("No hay DISPLAY. X11 necesita un servidor gráfico.")
 		cli.Say("En Wayland: export DISPLAY=:1 (Xwayland)")
-		return fmt.Errorf("")
+		return fmt.Errorf("falta DISPLAY: no hay servidor gráfico al que dibujar")
 	}
 
 	cli.Step("Plymouth en X11 con el tema '%s'", theme)
 
-	if !x11RootAccess() {
-		cli.Warn("root no puede abrir una ventana en %s (control de acceso de X).", os.Getenv("DISPLAY"))
+	if ok, motivo := x11RootAccess(); !ok {
+		cli.Warn("%s (DISPLAY=%s).", motivo, os.Getenv("DISPLAY"))
 		fmt.Println()
-		cli.Say("Solución (una vez por sesión):")
+		cli.Say("Si es el control de acceso de X, la solución (una vez por")
+		cli.Say("sesión) es:")
 		cli.Say("  boot-preview animation access")
 		fmt.Println()
 		cli.Say("Eso le da a root acceso al servidor X. Plymouth dibuja en una")
 		cli.Say("ventana GTK sobre tu escritorio, con el tema real.")
-		return fmt.Errorf("")
+		return fmt.Errorf("root no tiene acceso a %s: corré 'boot-preview animation access'", os.Getenv("DISPLAY"))
 	}
 
 	proc, err := startPlymouthX11(theme, paths)

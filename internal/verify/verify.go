@@ -50,62 +50,73 @@ func Run(paths cli.ToolPaths) error {
 		failed++
 	}
 
-	// ── Las dependencias ──
-	fmt.Println()
-	fmt.Println("  Dependencias de Limine")
-	for _, bin := range []string{"qemu-system-x86_64", "xorriso", "socat", "magick"} {
-		if path := cli.CommandPath(bin); path != "" {
-			row(true, bin, path)
-		} else {
-			row(false, bin, "falta (boot-preview install loader)")
-			failed++
-		}
-	}
-	if _, err := os.Stat("/usr/share/edk2/x64/OVMF_CODE.4m.fd"); err == nil {
-		row(true, "edk2-ovmf", "presente")
-	} else {
-		row(false, "edk2-ovmf", "falta (boot-preview install loader)")
-		failed++
-	}
-	if _, err := os.Stat("/dev/kvm"); err == nil {
-		row(true, "/dev/kvm", "presente")
-	} else {
-		rowWarn("/dev/kvm", "sin KVM: la VM va por emulación (lenta)")
-		warnings++
-	}
-
-	fmt.Println()
-	fmt.Println("  Dependencias de Plymouth")
-	for _, bin := range []string{"ffmpeg", "xdotool", "xhost"} {
-		if path := cli.CommandPath(bin); path != "" {
-			row(true, bin, path)
-		} else {
-			row(false, bin, "falta (boot-preview install animation)")
-			failed++
-		}
-	}
-	if _, err := os.Stat("/usr/lib/plymouth/renderers/x11.so"); err == nil {
-		row(true, "renderers/x11.so", "presente")
-	} else {
-		row(false, "renderers/x11.so", "falta (reinstalá plymouth)")
-		failed++
-	}
-
-	// ── La config ──
+	// ── Qué hay que verificar ──
 	//
 	// Solo se verifica lo que se instaló: los módulos son independientes
 	// (se puede instalar solo el de Plymouth, sin el de Limine).
-	fmt.Println()
-	fmt.Println("  Config")
-
-	// Qué modulos hay que verificar. Si el state.json no esta (instalado
-	// a mano), se verifican los dos: es mejor avisar de mas que de menos.
+	//
+	// El state.json manda; si no está (instalado a mano), se verifican los
+	// dos: es mejor avisar de más que de menos.
+	//
+	// Antes esto se calculaba DESPUÉS de las dependencias, así que un
+	// `install animation` fallaba en verify por "falta qemu-desktop".
 	hasLoader := true
 	hasAnimation := true
 	if hasState {
 		hasLoader = cli.Contains(st.Components, "loader")
 		hasAnimation = cli.Contains(st.Components, "animation")
 	}
+
+	// ── Las dependencias ──
+	if hasLoader {
+		fmt.Println()
+		fmt.Println("  Dependencias de Limine")
+		for _, bin := range []string{"qemu-system-x86_64", "xorriso", "socat", "magick"} {
+			if path := cli.CommandPath(bin); path != "" {
+				row(true, bin, path)
+			} else {
+				row(false, bin, "falta (boot-preview install loader)")
+				failed++
+			}
+		}
+		if _, err := os.Stat("/usr/share/edk2/x64/OVMF_CODE.4m.fd"); err == nil {
+			row(true, "edk2-ovmf", "presente")
+		} else {
+			row(false, "edk2-ovmf", "falta (boot-preview install loader)")
+			failed++
+		}
+		if _, err := os.Stat("/dev/kvm"); err == nil {
+			row(true, "/dev/kvm", "presente")
+		} else {
+			rowWarn("/dev/kvm", "sin KVM: la VM va por emulación (lenta)")
+			warnings++
+		}
+	}
+
+	if hasAnimation {
+		fmt.Println()
+		fmt.Println("  Dependencias de Plymouth")
+		// "import" (ImageMagick) es el que captura la ventana en el shot:
+		// no estaba en la lista y el fallo aparecía recién al capturar.
+		for _, bin := range []string{"ffmpeg", "xdotool", "xhost", "import"} {
+			if path := cli.CommandPath(bin); path != "" {
+				row(true, bin, path)
+			} else {
+				row(false, bin, "falta (boot-preview install animation)")
+				failed++
+			}
+		}
+		if _, err := os.Stat("/usr/lib/plymouth/renderers/x11.so"); err == nil {
+			row(true, "renderers/x11.so", "presente")
+		} else {
+			row(false, "renderers/x11.so", "falta (reinstalá plymouth)")
+			failed++
+		}
+	}
+
+	// ── La config ──
+	fmt.Println()
+	fmt.Println("  Config")
 
 	if hasLoader {
 		if _, err := os.Stat(filepath.Join(paths.LoaderConfig(), "limine.conf")); err == nil {
@@ -162,7 +173,7 @@ func Run(paths cli.ToolPaths) error {
 
 	fmt.Printf("\033[1;38;2;246;153;150m✗ Faltan cosas.\033[0m\n")
 	cli.Say("Corré: boot-preview install [loader|animation]")
-	return fmt.Errorf("")
+	return fmt.Errorf("faltan componentes: corré boot-preview install")
 }
 
 // change es un paquete que cambió de versión.

@@ -1,6 +1,7 @@
 package animation
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -63,16 +64,25 @@ func daemonRunning() bool {
 // desacoplado, el comando que lo arrancó ya retornó y no limpió nada.
 func StopPlymouth() error {
 	// Si hay un PID anotado, se usa.
+	//
+	// El kill va por sudo: el daemon corre como root, y desde el usuario
+	// devuelve EPERM. Antes se ignoraba el error y el comando decía
+	// "daemon cerrado" con el proceso todavía vivo (lo cerraba el
+	// `plymouth --quit` de más abajo, no esto).
+	pid := 0
 	if data, err := os.ReadFile(pidFilePath()); err == nil {
-		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-		if pid > 0 {
-			// El grupo entero: el plymouthd y su wrapper de sudo.
-			_ = syscall.Kill(-pid, syscall.SIGTERM)
-			// Y el plymouthd solo, por si el grupo no existe.
-			_ = syscall.Kill(pid, syscall.SIGTERM)
-		}
-		_ = os.Remove(pidFilePath())
+		pid, _ = strconv.Atoi(strings.TrimSpace(string(data)))
 	}
+	if pid > 0 {
+		// El grupo entero: el plymouthd y su wrapper de sudo/unshare.
+		_, _ = cli.RunCombined("sudo", "kill", "-TERM", "-"+strconv.Itoa(pid))
+		// Y el plymouthd solo, por si el grupo ya no está.
+		_, _ = cli.RunCombined("sudo", "kill", "-TERM", strconv.Itoa(pid))
+	}
+	// El archivo lo crea el bash del daemon COMO ROOT: os.Remove desde
+	// el usuario da EPERM por el sticky bit de /tmp, y el archivo quedaba
+	// ahí para siempre.
+	_, _ = cli.RunCombined("sudo", "rm", "-f", pidFilePath())
 
 	// Y por las dudas, el comando propio de Plymouth.
 	_, _ = cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--quit")
@@ -133,7 +143,11 @@ func (p *plymouthProcess) alive() bool {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return false
 	}
-	return syscall.Kill(p.cmd.Process.Pid, 0) == nil
+
+	err := syscall.Kill(p.cmd.Process.Pid, 0)
+	// EPERM no es "no existe": es "existe, pero no es tuyo". El daemon
+	// corre como root, así que desde el usuario SIEMPRE da EPERM.
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 // wait espera a que termine.
@@ -147,7 +161,9 @@ func (p *plymouthProcess) wait() {
 func (p *plymouthProcess) cleanup() {
 	_, _ = cli.RunCombined("sudo", "plymouth", "--quit")
 	if p.cmd != nil && p.cmd.Process != nil {
-		_ = p.cmd.Process.Kill()
+		// Process.Kill() desde el usuario da EPERM sobre un proceso root:
+		// el daemon quedaba vivo al salir del modo --foreground.
+		_, _ = cli.RunCombined("sudo", "kill", "-KILL", strconv.Itoa(p.cmd.Process.Pid))
 		_, _ = cli.RunCombined("sudo", "rm", "-rf", p.runTheme)
 	}
 	if p.etcDir != "" {
@@ -265,7 +281,7 @@ func (p *plymouthProcess) start(detach bool) error {
 		p.cleanup()
 		cli.Warn("plymouthd terminó. Log:")
 		printLogTail(x11Log)
-		return fmt.Errorf("")
+		return fmt.Errorf("plymouthd no arrancó (ver el log de arriba)")
 	}
 
 	// Mostrar el splash.

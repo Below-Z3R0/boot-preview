@@ -55,7 +55,7 @@ func updateFromGit(paths cli.ToolPaths) error {
 		cli.Say("    git -C %s stash       # guarda los cambios", paths.Repo)
 		cli.Say("    boot-preview update    # trae la versión nueva")
 		cli.Say("    git -C %s stash pop   # los recupera", paths.Repo)
-		return nil
+		return fmt.Errorf("no se pudo actualizar: el repo tiene cambios locales")
 	}
 
 	after := gitHead(paths.Repo)
@@ -68,6 +68,7 @@ func updateFromGit(paths cli.ToolPaths) error {
 	cli.Say("Reinstalando...")
 	if err := reinstall(paths); err != nil {
 		cli.Warn("no se pudo reinstalar: %s", err)
+		return err
 	}
 	return nil
 }
@@ -76,7 +77,7 @@ func updateFromGit(paths cli.ToolPaths) error {
 func updateFromNetwork(paths cli.ToolPaths) error {
 	if !cli.HaveCommand("curl") {
 		cli.Warn("necesita curl")
-		return fmt.Errorf("")
+		return fmt.Errorf("falta curl")
 	}
 
 	url := remoteURL + "/releases/latest/download/boot-preview-linux-amd64"
@@ -90,21 +91,23 @@ func updateFromNetwork(paths cli.ToolPaths) error {
 	if out, err := cli.RunCombined("curl", "-fsSL", url, "-o", tmp.Name()); err != nil {
 		cli.Warn("no se pudo descargar (¿sin red?)")
 		cli.Say("%s", out)
-		return fmt.Errorf("")
+		return fmt.Errorf("no se pudo descargar la actualización")
 	}
 
 	// Se comprueba que el binario funciona antes de pisar el instalado.
 	if out, err := cli.RunCombined(tmp.Name(), "version"); err != nil {
 		cli.Warn("el binario descargado no funciona")
 		cli.Say("%s", out)
-		return fmt.Errorf("")
+		return fmt.Errorf("el binario descargado no funciona")
 	}
 
 	dest := filepath.Join(paths.Bin, "boot-preview")
-	if err := cli.CopyFile(tmp.Name(), dest); err != nil {
+	if err := os.MkdirAll(paths.Bin, 0o755); err != nil {
 		return err
 	}
-	if err := os.Chmod(dest, 0o755); err != nil {
+	// ReplaceFile y no CopyFile: si estás actualizando desde el binario
+	// instalado, copiar sobre él da "text file busy".
+	if err := cli.ReplaceFile(tmp.Name(), dest); err != nil {
 		return err
 	}
 	cli.Ok("binario actualizado")
@@ -126,7 +129,7 @@ func reinstall(paths cli.ToolPaths) error {
 			return fmt.Errorf("hace falta Go para recompilar (o instalá el binario de las releases)")
 		}
 		cli.Say("Recompilando...")
-		if out, err := cli.RunCombined("go", "build", "-o", filepath.Join(paths.Repo, "dist", "boot-preview"), "./cmd/boot-preview"); err != nil {
+		if out, err := cli.RunIn(paths.Repo, "go", "build", "-o", filepath.Join(paths.Repo, "dist", "boot-preview"), "./cmd/boot-preview"); err != nil {
 			return fmt.Errorf("go build falló: %s", out)
 		}
 		cli.Ok("binario recompilado")
@@ -140,10 +143,7 @@ func reinstall(paths cli.ToolPaths) error {
 		if err := os.MkdirAll(paths.Bin, 0o755); err != nil {
 			return err
 		}
-		if err := cli.CopyFile(bin, dest); err != nil {
-			return err
-		}
-		if err := os.Chmod(dest, 0o755); err != nil {
+		if err := cli.ReplaceFile(bin, dest); err != nil {
 			return err
 		}
 		cli.Ok("instalado: %s", dest)

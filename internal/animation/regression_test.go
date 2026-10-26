@@ -392,3 +392,26 @@ func TestBuildVideoFilterVerticalNoSeRecorta(t *testing.T) {
 		t.Errorf("recorta un vertical (perderia el 56%%):\n%s", f)
 	}
 }
+
+// TestIniValueMatcheaLaClaveExacta verifica el parseo de los .plymouth.
+func TestIniValueMatcheaLaClaveExacta(t *testing.T) {
+	const conf = `[Plymouth Theme]
+Name=Mi tema
+ModuleName = two-step
+Theme=otro
+ThemeName=no-es-theme
+`
+
+	if got := iniValue(conf, "ModuleName"); got != "two-step" {
+		t.Errorf("ModuleName = %q, quiero two-step (con espacios)", got)
+	}
+	if got := iniValue(conf, "Theme"); got != "otro" {
+		t.Errorf("Theme = %q, quiero otro", got)
+	}
+	if got := iniValue(conf, "Name"); got != "Mi tema" {
+		t.Errorf("Name = %q", got)
+	}
+	if got := iniValue(conf, "NoExiste"); got != "" {
+		t.Errorf("NoExiste = %q, quiero vacio", got)
+	}
+}

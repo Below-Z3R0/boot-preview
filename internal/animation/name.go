@@ -39,6 +39,11 @@ func themeNameFor(video, home string) string {
 		}
 	}
 	slug = strings.Trim(b.String(), "-")
+	if slug == "" {
+		// Un nombre sin letras ni números (todo símbolos) daba "steam-",
+		// que no es un nombre de tema válido.
+		slug = "video"
+	}
 
 	if strings.HasPrefix(slug, "steam") {
 		return slug

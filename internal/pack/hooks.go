@@ -157,9 +157,14 @@ func notify() error {
 }
 
 // configHome devuelve la carpeta de config del usuario.
+//
+// Se usa cli.Home() y no $HOME: el hook corre como root desde pacman, y
+// ahí $HOME es /root, así que buscaba /root/.config/boot-preview, no lo
+// encontraba y el aviso no salía nunca. cli.Home() resuelve el usuario
+// que lanzó sudo.
 func configHome() string {
 	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
 		return dir
 	}
-	return filepath.Join(os.Getenv("HOME"), ".config")
+	return filepath.Join(cli.Home(), ".config")
 }

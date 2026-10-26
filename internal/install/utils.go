@@ -1,13 +1,15 @@
 package install
 
 import (
-	"github.com/Below-Z3R0/boot-preview/internal/cli"
+	"time"
 )
 
-// Version devuelve la versión del tool.
+// Version es la versión del tool.
 //
 // Se inyecta en el build con -ldflags "-X ...install.Version=v1.2.3".
-var Version = func() string { return "dev" }
+// Antes era una FUNCIÓN, y -X solo reemplaza strings: la versión quedaba
+// siempre en "dev".
+var Version = "dev"
 
 // sortStrings ordena la lista en el lugar (por referencia).
 func sortStrings(list []string) {
@@ -20,6 +22,5 @@ func sortStrings(list []string) {
 
 // today devuelve la fecha de hoy, en ISO.
 func today() string {
-	out, _ := cli.Run("date", "+%Y-%m-%d")
-	return out
+	return time.Now().Format("2006-01-02")
 }

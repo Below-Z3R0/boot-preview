@@ -55,14 +55,20 @@ func installBinaries(paths cli.ToolPaths, wantLoader, wantAnimation bool) error 
 		}
 	}
 
-	if origen != "" {
+	if origen == "" {
+		// Sin assets, `install loader` fallaba más adelante con un "no
+		// such file" del copiado de loader.conf, dejando el binario y el
+		// shim instalados a medias. Se corta acá.
+		if wantLoader {
+			return fmt.Errorf("faltan los assets (loader.conf, wallpaper):\n" +
+				"  buscá un repo con examples/ o un bundle con assets/ junto al binario")
+		}
+		cli.Warn("No encuentro los assets: solo se instala el módulo de Plymouth")
+	} else {
 		if err := cli.CopyDir(origen, assets); err != nil {
 			return err
 		}
 		cli.Ok("%s (desde %s)", assets, origen)
-	} else {
-		cli.Warn("No encuentro los assets (loader.conf, wallpaper)")
-		cli.Say("Sin ellos, `loader` no tiene wallpaper de ejemplo.")
 	}
 
 	// Un shim en /usr/local/bin para que `sudo boot-preview` funcione:

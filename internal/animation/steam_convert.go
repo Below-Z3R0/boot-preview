@@ -35,6 +35,11 @@ func cmdSteamConvert(args []string, paths cli.ToolPaths, apply bool) error {
 		if video == "" {
 			video = steam.DefaultVideo(home)
 		}
+		if video == "" {
+			return fmt.Errorf("no hay ninguna animación de Steam para convertir\n" +
+				"Pasá un video: boot-preview animation steam-convert <archivo.webm>\n" +
+				"O mirá cuáles hay: boot-preview animation steam-source")
+		}
 	}
 
 	// Se acepta un nombre relativo dentro de movies/.

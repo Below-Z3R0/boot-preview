@@ -190,3 +190,34 @@ func ParseInt(s string, fallback int) int {
 	}
 	return fallback
 }
+
+// ReplaceFile deja dest con el contenido de src, de forma atómica.
+//
+// Copiar directo sobre un binario que se está ejecutando da "text file
+// busy": el kernel no deja abrirlo para escritura. Escribir a un
+// temporal y renombrar no toca el archivo en uso.
+func ReplaceFile(src, dest string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".boot-preview-replace.*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o755); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, dest)
+}

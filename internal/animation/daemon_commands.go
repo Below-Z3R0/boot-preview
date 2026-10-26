@@ -15,8 +15,10 @@
 package animation
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
@@ -80,9 +82,10 @@ func daemonCall(args ...string) error {
 	full := append([]string{"timeout", "5", "plymouth"}, args...)
 	out, err := cli.RunCombined("sudo", append([]string{"--preserve-env=DISPLAY,XAUTHORITY"}, full...)...)
 	if err != nil {
-		// El timeout sale con 124: no es un error del comando, es que
-		// Plymouth no respondió a tiempo.
-		if strings.Contains(out, "timeout") || strings.TrimSpace(out) == "" {
+		// El timeout sale con 124. Antes se buscaba la palabra "timeout"
+		// en la salida, que nunca aparece: el comando no la imprime.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 124 {
 			return fmt.Errorf("plymouth %s no respondió a tiempo", strings.Join(args, " "))
 		}
 		return fmt.Errorf("plymouth %s falló: %s", strings.Join(args, " "), strings.TrimSpace(out))
@@ -95,7 +98,7 @@ func daemonPing() error {
 	out, err := cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
 	if err != nil {
 		cli.Warn("El daemon de Plymouth no está corriendo")
-		return fmt.Errorf("")
+		return fmt.Errorf("el daemon de Plymouth no responde")
 	}
 	_ = out
 	cli.Ok("El daemon de Plymouth está corriendo")
@@ -111,7 +114,7 @@ func daemonStatus() error {
 		cli.Warn("El daemon de Plymouth no está corriendo")
 		cli.Say("Para levantarlo con el tema del preview:")
 		cli.Say("    boot-preview animation")
-		return fmt.Errorf("")
+		return fmt.Errorf("el daemon de Plymouth no está corriendo")
 	} else {
 		_ = out
 		cli.Ok("daemon corriendo")
@@ -124,11 +127,6 @@ func daemonStatus() error {
 				cli.Say("    tema del sistema: %s", strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "Theme=")))
 			}
 		}
-	}
-
-	// El modo: boot, shutdown o reboot.
-	if out, err := cli.RunCombined("plymouth", "change-mode", "--help"); err == nil {
-		_ = out
 	}
 
 	return nil

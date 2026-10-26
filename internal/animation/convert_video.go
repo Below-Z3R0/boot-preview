@@ -36,6 +36,11 @@ func convertVideoToTheme(video, name string) error {
 		}
 	}
 	if env := os.Getenv("STEAM_RES"); env != "" {
+		// Se valida acá: con un valor basura, parseRes caía en 1920x1080
+		// en silencio y el tema salía a una resolución que nadie pidió.
+		if _, _, err := cli.ParseRes(env); err != nil {
+			return err
+		}
 		res = env
 	}
 

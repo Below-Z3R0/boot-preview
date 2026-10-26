@@ -1,10 +1,8 @@
 package loader
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -53,20 +51,6 @@ func nowSeconds() int64 {
 func timestamp() string {
 	return time.Now().Format("20060102-150405")
 }
-
-// ensureDir crea un directorio si no existe.
-func ensureDir(dir string) error {
-	return os.MkdirAll(dir, 0o755)
-}
-
-// dirOf devuelve el directorio de un path.
-func dirOf(path string) string {
-	return filepath.Dir(path)
-}
-
-// unusedFmt evita que el import de fmt se marque como no usado si más
-// adelante no hace falta.
-var _ = fmt.Sprintf
 
 // writeFile escribe un archivo, con sudo si hace falta.
 func writeFile(path, content string, needsSudo bool) error {

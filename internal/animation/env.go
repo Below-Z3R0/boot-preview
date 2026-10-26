@@ -39,11 +39,11 @@ func replaceLine(content, key, value string) string {
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
 		// La clave exacta, con los espacios que quiera alrededor de los
-		// dos puntos: Limine acepta "clave: valor" y "clave : valor".
+		// dos puntos: "clave: valor" y "clave : valor".
 		//
-		// Solo la clave exacta: "ImageDir" no debe pisar "ImageDirBackup".
+		// Solo la clave exacta: "ImageDir" no debe pisar "ImageDirBackup"
+		// ni "ImageDirExtra".
 		trimmed := strings.TrimSpace(line)
-		// La clave exacta: ni "ImageDirBackup" ni "ImageDirExtra".
 		name, _, ok := strings.Cut(trimmed, ":")
 		if !ok {
 			name, _, ok = strings.Cut(trimmed, "=")

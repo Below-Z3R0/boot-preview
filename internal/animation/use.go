@@ -16,12 +16,14 @@ import (
 func cmdPreview(args []string, paths cli.ToolPaths) error {
 	if len(args) == 0 || args[0] == "" {
 		cli.Say("Falta el nombre del tema")
-		return cmdSources(paths)
+		_ = cmdSources(paths)
+		return fmt.Errorf("falta el nombre del tema")
 	}
 	name := args[0]
 	if _, err := os.Stat(filepath.Join(themesDir, name)); err != nil {
 		cli.Say("No existe el tema: %s", name)
-		return cmdSources(paths)
+		_ = cmdSources(paths)
+		return fmt.Errorf("no existe el tema: %s", name)
 	}
 
 	if err := os.MkdirAll(paths.AnimationConfig(), 0o755); err != nil {
@@ -41,12 +43,14 @@ func cmdPreview(args []string, paths cli.ToolPaths) error {
 func cmdUse(args []string, paths cli.ToolPaths) error {
 	if len(args) == 0 || args[0] == "" {
 		cli.Say("Falta el nombre del tema")
-		return cmdSources(paths)
+		_ = cmdSources(paths)
+		return fmt.Errorf("falta el nombre del tema")
 	}
 	name := args[0]
 	if _, err := os.Stat(filepath.Join(themesDir, name)); err != nil {
 		cli.Say("No existe el tema: %s", name)
-		return cmdSources(paths)
+		_ = cmdSources(paths)
+		return fmt.Errorf("no existe el tema: %s", name)
 	}
 
 	cli.Step("Aplicando '%s' al SISTEMA", name)

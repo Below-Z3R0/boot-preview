@@ -172,13 +172,24 @@ func Run(args []string, paths cli.ToolPaths) error {
 			if i+1 >= len(rest) {
 				return fmt.Errorf("falta el valor de %s", rest[i])
 			}
+			// Una resolución inválida se escribe tal cual en el conf
+			// del ISO y Limine cae a la suya sin avisar.
+			if _, _, err := cli.ParseRes(rest[i+1]); err != nil {
+				return err
+			}
 			opts.resolution = rest[i+1]
 			i++
 		case "--timeout":
 			if i+1 >= len(rest) {
 				return fmt.Errorf("falta el valor de %s", rest[i])
 			}
-			opts.timeout, _ = strconv.Atoi(rest[i+1])
+			// Un timeout que no es número daba 0, y el shot capturaba
+			// lo que hubiera en el primer frame (el logo del firmware).
+			v, err := strconv.Atoi(rest[i+1])
+			if err != nil || v <= 0 {
+				return fmt.Errorf("timeout inválido: %q (segundos, mayor que 0)", rest[i+1])
+			}
+			opts.timeout = v
 			i++
 		case "--real":
 			opts.real = true
@@ -192,7 +203,11 @@ func Run(args []string, paths cli.ToolPaths) error {
 			if i+1 >= len(rest) {
 				return fmt.Errorf("falta el valor de %s", rest[i])
 			}
-			opts.dim, _ = strconv.ParseFloat(rest[i+1], 64)
+			v, err := strconv.ParseFloat(rest[i+1], 64)
+			if err != nil || v < 0 || v > 1 {
+				return fmt.Errorf("--dim va de 0 a 1: %q", rest[i+1])
+			}
+			opts.dim = v
 			i++
 		case "--overlay":
 			if i+1 >= len(rest) {

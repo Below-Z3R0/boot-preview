@@ -113,10 +113,13 @@ func NewPaths() ToolPaths {
 	// assets ya están en paths.Lib y no hay nada que clonar.
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
+		// dir, su padre y su abuelo. filepath.Join ya limpia el "..":
+		// envolverlo en otro filepath.Dir subía UN NIVEL DE MÁS, así que
+		// desde dist/boot-preview nunca se encontraba el repo.
 		for _, candidate := range []string{
 			dir,
-			filepath.Dir(filepath.Join(dir, "..")),
-			filepath.Dir(filepath.Join(dir, "..", "..")),
+			filepath.Join(dir, ".."),
+			filepath.Join(dir, "..", ".."),
 		} {
 			if isRepo(candidate) {
 				p.Repo = candidate
@@ -215,6 +218,17 @@ func Run(name string, args ...string) (string, error) {
 // RunCombined ejecuta un comando con stderr mezclado.
 func RunCombined(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
+	out, err := cmd.CombinedOutput()
+	return strings.TrimRight(string(out), "\n"), err
+}
+
+// RunIn ejecuta un comando en un directorio y devuelve su salida.
+//
+// RunCombined corre en el cwd del proceso: `go build ./cmd/...` desde
+// otro lado falla con "no se encontró el módulo".
+func RunIn(dir, name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return strings.TrimRight(string(out), "\n"), err
 }

@@ -1,6 +1,7 @@
 package install
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -18,18 +19,25 @@ func installConfig(paths cli.ToolPaths, wantLoader, wantAnimation bool) error {
 			return err
 		}
 
-		// La config de prueba: se instala desde el asset, pero si el
-		// usuario ya tenía una se guarda como .bak (no se pisa).
+		// La config de prueba: se instala desde el asset SOLO si no hay
+		// una. Si el usuario ya la tenía (la editó con `loader edit`), se
+		// deja como está.
+		//
+		// Antes se hacía un .bak y se pisaba igual: cada `install` o
+		// `update` borraba el tema que el usuario había configurado.
 		conf := filepath.Join(loaderDir, "limine.conf")
 		if _, err := os.Stat(conf); err == nil {
-			_ = cli.CopyFile(conf, conf+".bak")
-			cli.Say("hay una config previa: guardada como limine.conf.bak")
+			cli.Ok("%s (ya estaba, no se toca)", conf)
+		} else {
+			src := filepath.Join(paths.Lib, "assets", "loader.conf")
+			if _, err := os.Stat(src); err != nil {
+				return fmt.Errorf("falta el asset %s: instalá desde el repo o desde el bundle", src)
+			}
+			if err := cli.CopyFile(src, conf); err != nil {
+				return err
+			}
+			cli.Ok("%s", conf)
 		}
-		src := filepath.Join(paths.Lib, "assets", "loader.conf")
-		if err := cli.CopyFile(src, conf); err != nil {
-			return err
-		}
-		cli.Ok("%s", conf)
 
 		// El wallpaper de ejemplo.
 		rei := filepath.Join(loaderDir, "wallpaper", "rei.png")

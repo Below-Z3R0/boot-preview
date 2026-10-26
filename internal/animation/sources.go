@@ -53,7 +53,6 @@ func cmdSources(paths cli.ToolPaths) error {
 	return nil
 }
 
-// themeModule lee el ModuleName del .plymouth de un tema.
 // themeModule devuelve el módulo de Plymouth de un tema.
 //
 // Si no lo dice el .plymouth, se asume "script": es el único que sabe
@@ -72,15 +71,11 @@ func themeModule(dir string) string {
 		if err != nil {
 			continue
 		}
-		for _, line := range strings.Split(string(data), "\n") {
-			if line != "ModuleName" && !strings.HasPrefix(line, "ModuleName=") {
-				continue
-			}
-			rest := strings.TrimSpace(strings.TrimPrefix(line, "ModuleName"))
-			rest = strings.TrimSpace(strings.TrimPrefix(rest, "="))
-			if rest != "" {
-				return rest
-			}
+		// Antes el parseo era a mano y no toleraba indentación ni
+		// espacios: un .plymouth con "  ModuleName = two-step" se
+		// reportaba como "script".
+		if module := iniValue(string(data), "ModuleName"); module != "" {
+			return module
 		}
 	}
 	return "script"

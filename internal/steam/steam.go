@@ -266,7 +266,6 @@ func DefaultVideo(home string) string {
 	if len(roots) == 0 {
 		return ""
 	}
-	dir := filepath.Join(roots[0], "steamui", "movies")
 
 	model := readProductName()
 	wanted := "bigpicture_startup.webm"
@@ -277,18 +276,24 @@ func DefaultVideo(home string) string {
 		wanted = "oled_startup.webm"
 	}
 
-	if path := filepath.Join(dir, wanted); cli.FileExists(path) {
-		return path
-	}
+	// Se prueban TODAS las raíces: antes solo se miraba la primera, y si
+	// ahí no estaba steamui/movies (instalación vieja), no encontraba
+	// nada aunque la otra raíz lo tuviera.
+	for _, root := range roots {
+		dir := filepath.Join(root, "steamui", "movies")
 
-	// Si no está la del modelo, se usa la primera que haya.
-	for _, fallback := range []string{
-		"bigpicture_startup.webm",
-		"deck_startup.webm",
-		"oled_startup.webm",
-	} {
-		if path := filepath.Join(dir, fallback); cli.FileExists(path) {
+		if path := filepath.Join(dir, wanted); cli.FileExists(path) {
 			return path
+		}
+		// Si no está la del modelo, la primera que haya.
+		for _, fallback := range []string{
+			"bigpicture_startup.webm",
+			"deck_startup.webm",
+			"oled_startup.webm",
+		} {
+			if path := filepath.Join(dir, fallback); cli.FileExists(path) {
+				return path
+			}
 		}
 	}
 	return ""

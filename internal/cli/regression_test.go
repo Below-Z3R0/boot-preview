@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -142,5 +143,62 @@ func TestParseRes(t *testing.T) {
 	}
 	if _, _, err := ParseRes("1920"); err == nil {
 		t.Error("ParseRes() dio nil error para una resolucion sin alto")
+	}
+}
+
+// TestReplaceFileReemplazaSinRomperElModo verifica la copia atómica.
+//
+// Copiar directo sobre un binario en ejecución da "text file busy": por
+// eso se escribe a un temporal y se renombra.
+func TestReplaceFileReemplazaSinRomperElModo(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "nuevo")
+	dest := filepath.Join(dir, "instalado")
+
+	if err := os.WriteFile(src, []byte("nuevo contenido"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("viejo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ReplaceFile(src, dest); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "nuevo contenido" {
+		t.Errorf("quedo %q", data)
+	}
+	info, err := os.Stat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Errorf("modo = %o, quiero 755", info.Mode().Perm())
+	}
+}
+
+// TestRunInCorreEnElDirectorio verifica que RunIn cambia de cwd.
+//
+// El bug: `go build ./cmd/...` se corría en el cwd del proceso y fallaba
+// con "no se encontró el módulo" cuando el repo era otro directorio.
+func TestRunInCorreEnElDirectorio(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "marca.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := RunIn(dir, "pwd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	real, _ := filepath.EvalSymlinks(dir)
+	got, _ := filepath.EvalSymlinks(strings.TrimSpace(out))
+	if got != real {
+		t.Errorf("RunIn corrio en %q, quiero %q", got, real)
 	}
 }

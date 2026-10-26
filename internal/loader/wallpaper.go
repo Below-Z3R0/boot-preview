@@ -45,13 +45,13 @@ func cmdWallpapers(opts options, paths cli.ToolPaths) error {
 
 	cli.Step("La real (más detalle, sin blur)")
 	real := filepath.Join(wallDir, "rei.png")
-	if err := wallpaper.Prepare(wallpaper.Options{Src: src, Out: real, Blur: "0x0", Format: "png"}); err != nil {
+	if err := prepareSafe(src, real, wallpaper.Options{Src: src, Out: real, Blur: "0x0", Format: "png"}); err != nil {
 		return err
 	}
 
 	cli.Step("La difuminada (ya viene con el blur aplicado)")
 	blurred := filepath.Join(wallDir, "rei-blur.png")
-	if err := wallpaper.Prepare(wallpaper.Options{Src: src, Out: blurred, Blur: "0x30", Format: "png"}); err != nil {
+	if err := prepareSafe(src, blurred, wallpaper.Options{Src: src, Out: blurred, Blur: "0x30", Format: "png"}); err != nil {
 		return err
 	}
 
@@ -75,4 +75,39 @@ func cmdWallpapers(opts options, paths cli.ToolPaths) error {
 	cli.Say("      cp %s %s", real, filepath.Join(wallDir, "wallpaper.png"))
 	cli.Say("      boot-preview loader apply wallpaper")
 	return nil
+}
+
+// prepareSafe prepara la imagen sin leer y escribir el mismo archivo.
+//
+// Cuando la fuente y el destino son el mismo (rei.png -> rei.png), vips y
+// magick fallan con "Bus error" (ver docs/RENDIMIENTO.md): se escribe a un
+// temporal en la misma carpeta y se renombra.
+func prepareSafe(src, dest string, opts wallpaper.Options) error {
+	if !samePath(src, dest) {
+		return wallpaper.Prepare(opts)
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".wallpaper-*"+filepath.Ext(dest))
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	tmp.Close()
+	defer os.Remove(tmpName)
+
+	opts.Out = tmpName
+	if err := wallpaper.Prepare(opts); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, dest)
+}
+
+// samePath dice si los dos paths son el mismo archivo.
+func samePath(a, b string) bool {
+	infoA, errA := os.Stat(a)
+	infoB, errB := os.Stat(b)
+	if errA == nil && errB == nil {
+		return os.SameFile(infoA, infoB)
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
 }

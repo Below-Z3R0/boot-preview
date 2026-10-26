@@ -36,7 +36,7 @@ func writeState(paths cli.ToolPaths, what string) error {
 	}
 
 	st := state{
-		Version:    Version(),
+		Version:    Version,
 		UpdatedAt:  today(),
 		Components: []string{what},
 		Deps:       deps,

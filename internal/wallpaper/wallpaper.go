@@ -136,16 +136,9 @@ func prepareWithVips(opts Options, out string) error {
 		return nil
 	}
 
-	// La resolución se valida una vez, aca: los dos caminos (vips y
-	// magick) la usan, y magick la pasa cruda a la linea de comandos (con
-	// un valor invalido, fallaria con un error de magick, no con uno
-	// nuestro).
-	if opts.Res != "" {
-		if _, _, err := cli.ParseRes(opts.Res); err != nil {
-			return err
-		}
-	}
-
+	// La resolución se valida una vez: los dos caminos (vips y magick) la
+	// usan, y magick la pasa cruda a la línea de comandos (con un valor
+	// inválido fallaría con un error de magick, no con uno nuestro).
 	if opts.Res != "" {
 		tw, th, err := cli.ParseRes(opts.Res)
 		if err != nil {
@@ -277,15 +270,3 @@ func haveCommand(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
 }
-
-// parseRes separa "WxH".
-// parseRes parsea la resolucion pedida.
-//
-// Si no se puede, devuelve 0,0: el wallpaper no se genera y el comando
-// avisa, en vez de fallar con un error de sintaxis.
-
-// imageSize devuelve el tamaño de una imagen, en píxeles.
-
-// fileSize devuelve el tamaño de un archivo, en formato legible.
-
-// copyFile copia un archivo.

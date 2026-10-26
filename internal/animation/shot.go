@@ -29,16 +29,16 @@ func cmdShot(args []string, paths cli.ToolPaths) error {
 
 	if os.Getenv("DISPLAY") == "" {
 		cli.Warn("No hay DISPLAY. X11 necesita un servidor gráfico.")
-		return fmt.Errorf("")
+		return fmt.Errorf("falta DISPLAY: no hay servidor gráfico")
 	}
 	if !cli.HaveCommand("import") {
 		cli.Warn("Falta ImageMagick (import).")
-		return fmt.Errorf("")
+		return fmt.Errorf("falta ImageMagick (import)")
 	}
-	if !x11RootAccess() {
-		cli.Warn("root no puede abrir una ventana en %s.", os.Getenv("DISPLAY"))
-		cli.Say("Solución: boot-preview animation access")
-		return fmt.Errorf("")
+	if ok, motivo := x11RootAccess(); !ok {
+		cli.Warn("%s (DISPLAY=%s).", motivo, os.Getenv("DISPLAY"))
+		cli.Say("Si es el control de acceso de X: boot-preview animation access")
+		return fmt.Errorf("root no puede dibujar en %s", os.Getenv("DISPLAY"))
 	}
 
 	// Si ya hay un daemon corriendo (el usuario dejó la ventana
@@ -71,7 +71,7 @@ func cmdShot(args []string, paths cli.ToolPaths) error {
 	if wid == "" {
 		cli.Warn("No encontré la ventana de Plymouth.")
 		printLogTail(x11Log)
-		return fmt.Errorf("")
+		return fmt.Errorf("no encontré la ventana de Plymouth")
 	}
 
 	cli.Step("Capturando (ventana %s)", wid)

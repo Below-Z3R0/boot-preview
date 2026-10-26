@@ -69,7 +69,7 @@ func run(args []string) error {
 	default:
 		fmt.Fprintf(os.Stderr, "Herramienta desconocida: %s\n\n", cmd)
 		usage()
-		return fmt.Errorf("")
+		return fmt.Errorf("herramienta desconocida: %s", cmd)
 	}
 }
 
