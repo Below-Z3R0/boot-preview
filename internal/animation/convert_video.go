@@ -70,9 +70,20 @@ func convertVideoToTheme(video, name string) error {
 	// El crop va al ASPECTO DE LA PANTALLA, no al del video: si se
 	// escalara 1920x1200 a 1920x1080 sin recortar, la imagen se estiraría
 	// verticalmente (un 10% más alta).
+	//
+	// El crop aplica solo si el video es MAS ANCHO que la pantalla (que es
+	// el caso normal: 1920x1200 en una 1920x1080). Si el video es mas
+	// angosto (los del Steam Deck son cuadrados, 450x450), no se recorta:
+	// se escala con barras, porque recortar el 44% de la imagen pierde
+	// el contenido.
+	//
+	//   video 1920x1200 -> crop a 1920x1080 (las barras negras se van)
+	//   video  450x450  -> escala a 450x253 con barras (nada se pierde)
 	filter := fmt.Sprintf(
-		"fps=%d,crop=iw:min(ih\\,iw*%d/%d):0:(ih-min(ih\\,iw*%d/%d))/2,scale=%d:%d:flags=lanczos",
-		refreshRate, screenH, screenW, screenH, screenW, w, h)
+		"fps=%d,crop=iw:min(ih\\,iw*%d/%d):0:(ih-min(ih\\,iw*%d/%d))/2,"+
+			"scale=%d:%d:force_original_aspect_ratio=decrease:flags=lanczos,"+
+			"pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black",
+		refreshRate, screenH, screenW, screenH, screenW, w, h, w, h)
 
 	ffmpeg := exec.Command("ffmpeg", "-loglevel", "error", "-y", "-i", video,
 		"-vf", filter, "-start_number", "0", filepath.Join(tmp, "animation-%03d.png"))

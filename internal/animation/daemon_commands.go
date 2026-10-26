@@ -71,13 +71,19 @@ func runDaemonCommands(args []string) error {
 // (display-message, ask-for-password) y sin timeout la terminal queda
 // colgada.
 func daemonCall(args ...string) error {
+	// Si el daemon no está, el error no es del comando: es que no hay a
+	// quién mandarle el mensaje.
+	if !daemonRunning() {
+		return fmt.Errorf("el daemon de Plymouth no está corriendo (arrancá uno con: boot-preview animation)")
+	}
+
 	full := append([]string{"timeout", "5", "plymouth"}, args...)
 	out, err := cli.RunCombined("sudo", append([]string{"--preserve-env=DISPLAY,XAUTHORITY"}, full...)...)
 	if err != nil {
 		// El timeout sale con 124: no es un error del comando, es que
-		// Plymouth no respondió.
+		// Plymouth no respondió a tiempo.
 		if strings.Contains(out, "timeout") || strings.TrimSpace(out) == "" {
-			return fmt.Errorf("plymouth %s no respondió", strings.Join(args, " "))
+			return fmt.Errorf("plymouth %s no respondió a tiempo", strings.Join(args, " "))
 		}
 		return fmt.Errorf("plymouth %s falló: %s", strings.Join(args, " "), strings.TrimSpace(out))
 	}
