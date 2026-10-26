@@ -215,3 +215,156 @@ func TestPidSeEscribeEnElArchivo(t *testing.T) {
 		t.Errorf("el PID del archivo no es valido: %q", data)
 	}
 }
+
+// TestBuildVideoFilterUsaElRectDetectado verifica que el crop usa el
+// rectángulo de contenido que devuelve cropdetect.
+//
+// El bug: el crop se calculaba por aspecto (y se aplicaba siempre), así
+// que un video cuadrado perdía el 44% de la imagen aunque no tuviera
+// bandas.
+func TestBuildVideoFilterUsaElRectDetectado(t *testing.T) {
+	// 1920x1200 con bandas: el contenido real es 1920x1080 en y=60.
+	f := buildVideoFilter(rect{W: 1920, H: 1080, X: 0, Y: 60}, 1920, 1080, 50)
+	if !strings.Contains(f, "crop=1920:1080:0:60") {
+		t.Errorf("no usa el rect detectado:\n%s", f)
+	}
+
+	// Cuadrado sin bandas: el rect es el video entero, crop inocuo.
+	f2 := buildVideoFilter(rect{W: 450, H: 450}, 1920, 1080, 50)
+	if !strings.Contains(f2, "crop=450:450:0:0") {
+		t.Errorf("no usa el rect del video entero:\n%s", f2)
+	}
+}
+
+// TestBuildVideoFilterUsaElDestino verifica que el destino del filtro es
+// el tamaño pedido, no el del video.
+//
+// El bug: los frames se extraían al tamaño del video y después se
+// escalaban forzado a la pantalla, así que un 1920x1200 se aplastaba.
+func TestBuildVideoFilterUsaElDestino(t *testing.T) {
+	f := buildVideoFilter(rect{W: 1920, H: 1080}, 1920, 1080, 50)
+
+	if !strings.Contains(f, "scale=1920:1080") {
+		t.Errorf("el scale no usa el destino:\n%s", f)
+	}
+	if !strings.Contains(f, "pad=1920:1080") {
+		t.Errorf("el pad no usa el destino:\n%s", f)
+	}
+	if !strings.Contains(f, "fps=50") {
+		t.Errorf("falta el fps:\n%s", f)
+	}
+}
+
+// TestBuildVideoFilterFuerzaAspectoExacto verifica que el escalado no
+// deja bandas dentro del destino (el pad es solo para los bordes).
+func TestBuildVideoFilterFuerzaAspectoExacto(t *testing.T) {
+	f := buildVideoFilter(rect{W: 1920, H: 1080}, 1920, 1080, 50)
+	if !strings.Contains(f, "force_original_aspect_ratio=decrease") {
+		t.Errorf("el scale no respeta el aspecto:\n%s", f)
+	}
+	if !strings.Contains(f, "flags=lanczos") {
+		t.Errorf("falta lanczos:\n%s", f)
+	}
+}
+
+// TestParseCropDetect toma el último crop del stderr de ffmpeg.
+func TestParseCropDetect(t *testing.T) {
+	const out = `[Parsed_cropdetect_0 @ 0x1] x1:0 x2:1919 y1:52 y2:1147 w:1920 h:1080 x:0 y:60 pts:0 t:0
+[Parsed_cropdetect_0 @ 0x1] x1:0 x2:1919 y1:55 y2:1150 w:1920 h:1080 x:0 y:60 pts:1024 t:0.1
+crop=1920:1080:0:60
+`
+	r := parseCropDetect(out, 1920, 1200)
+	if r.W != 1920 || r.H != 1080 || r.X != 0 || r.Y != 60 {
+		t.Errorf("parseCropDetect() = %+v, quiero 1920x1080+0+60", r)
+	}
+}
+
+// TestParseCropDetectSinDatos devuelve el video entero.
+func TestParseCropDetectSinDatos(t *testing.T) {
+	r := parseCropDetect("no hay nada aca", 450, 450)
+	if r.W != 450 || r.H != 450 || r.X != 0 || r.Y != 0 {
+		t.Errorf("parseCropDetect() = %+v, quiero el video entero", r)
+	}
+}
+
+// TestParseCropDetectRectInvalido ignora un rectángulo que se sale del
+// video.
+func TestParseCropDetectRectInvalido(t *testing.T) {
+	r := parseCropDetect("crop=1920:1080:100:100", 1920, 1200)
+	if r.W != 1920 || r.H != 1200 {
+		t.Errorf("acepto un rect fuera del video: %+v", r)
+	}
+}
+
+// TestParseXrandr saca la resolución de una salida real de xrandr.
+func TestParseXrandr(t *testing.T) {
+	const out = `Screen 0: minimum 8 x 8, current 1920 x 1080, maximum 32767 x 32767
+eDP-1 connected primary 1920x1080+0+0 (normal left inverted right x axis y axis) 344mm x 194mm
+   1920x1080     60.00*+
+   1280x720      59.86
+HDMI-1 disconnected (normal left inverted right x axis y axis)
+`
+	w, h := parseXrandr(out)
+	if w != 1920 || h != 1080 {
+		t.Errorf("parseXrandr() = %dx%d, quiero 1920x1080", w, h)
+	}
+}
+
+// TestParseXrandrSinMonitor devuelve 0,0 si no hay monitor conectado.
+func TestParseXrandrSinMonitor(t *testing.T) {
+	const out = `Screen 0: minimum 8 x 8, current 1024 x 768, maximum 32767 x 32767
+HDMI-1 disconnected (normal left inverted right x axis y axis)
+`
+	if w, h := parseXrandr(out); w != 0 || h != 0 {
+		t.Errorf("parseXrandr() = %dx%d, quiero 0x0", w, h)
+	}
+}
+
+// TestScreenSizeRespetaElEntorno verifica que las variables del preview
+// ganan sobre la detección.
+func TestScreenSizeRespetaElEntorno(t *testing.T) {
+	t.Setenv("PLYMOUTH_SCREEN_W", "2560")
+	t.Setenv("PLYMOUTH_SCREEN_H", "1440")
+
+	w, h := screenSize()
+	if w != 2560 || h != 1440 {
+		t.Errorf("screenSize() = %dx%d, quiero 2560x1440", w, h)
+	}
+}
+
+// TestBuildVideoFilterRecorteParaLlenar verifica el umbral del recorte.
+//
+// Un 16:10 en pantalla 16:9 pierde 10% al llenar: se acepta. Un
+// cuadrado perdería 44%: no se acepta, va con barras.
+func TestBuildVideoFilterRecorteParaLlenar(t *testing.T) {
+	// 1920x1200 -> 1920x1080: recorta 60 px arriba y 60 abajo.
+	f := buildVideoFilter(rect{W: 1920, H: 1200}, 1920, 1080, 50)
+	if !strings.Contains(f, "crop=1920:1080:0:60") {
+		t.Errorf("no recorta el 16:10 para llenar:\n%s", f)
+	}
+
+	// 450x450 -> 1920x1080: perderia el 44%, no se recorta.
+	f2 := buildVideoFilter(rect{W: 450, H: 450}, 1920, 1080, 50)
+	if strings.Contains(f2, "crop=450:253") {
+		t.Errorf("recorta el cuadrado (perderia el 44%%):\n%s", f2)
+	}
+	// El crop que queda es el del video entero (inocuo).
+	if !strings.Contains(f2, "crop=450:450:0:0") {
+		t.Errorf("no usa el rect del video entero:\n%s", f2)
+	}
+
+	// Un 16:9 exacto no lleva segundo crop.
+	f3 := buildVideoFilter(rect{W: 1920, H: 1080}, 1920, 1080, 50)
+	if strings.Count(f3, "crop=") != 1 {
+		t.Errorf("el 16:9 lleva un crop de mas:\n%s", f3)
+	}
+}
+
+// TestBuildVideoFilterVerticalNoSeRecorta verifica un video vertical
+// (1080x1920): perderia el 56% al llenar 16:9, asi que va con barras.
+func TestBuildVideoFilterVerticalNoSeRecorta(t *testing.T) {
+	f := buildVideoFilter(rect{W: 1080, H: 1920}, 1920, 1080, 50)
+	if strings.Contains(f, "crop=1080:607") {
+		t.Errorf("recorta un vertical (perderia el 56%%):\n%s", f)
+	}
+}

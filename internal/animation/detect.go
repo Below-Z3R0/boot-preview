@@ -42,8 +42,13 @@ func detectVideoProps(video string) (fps, width, height int) {
 }
 
 // screenSize devuelve el tamaño de la pantalla.
+//
+// Orden: las variables de entorno (lo que pide el preview), después la
+// resolución real del X11 (xrandr) y al final 1920x1080. Antes era solo
+// 1920x1080 fijo: en un monitor distinto el splash se veía con borde.
 func screenSize() (int, int) {
-	w, h := 1920, 1080
+	w, h := 0, 0
+
 	if env := os.Getenv("PLYMOUTH_SCREEN_W"); env != "" {
 		if v, err := strconv.Atoi(env); err == nil && v > 0 {
 			w = v
@@ -54,7 +59,46 @@ func screenSize() (int, int) {
 			h = v
 		}
 	}
+
+	if w <= 0 || h <= 0 {
+		if out, err := cli.Run("xrandr", "--current"); err == nil {
+			if xw, xh := parseXrandr(out); xw > 0 && xh > 0 {
+				w, h = xw, xh
+			}
+		}
+	}
+
+	if w <= 0 {
+		w = 1920
+	}
+	if h <= 0 {
+		h = 1080
+	}
 	return w, h
+}
+
+// parseXrandr saca la resolución actual de la salida de `xrandr --current`.
+//
+// La línea del monitor sale así:
+//
+//	eDP-1 connected primary 1920x1080+0+0 (normal left inverted right x axis y axis) ...
+func parseXrandr(out string) (int, int) {
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.Contains(line, " connected") {
+			continue
+		}
+		for _, field := range strings.Fields(line) {
+			// La geometría viene como 1920x1080+0+0.
+			plus := strings.IndexByte(field, '+')
+			if plus < 0 || !strings.ContainsRune(field[:plus], 'x') {
+				continue
+			}
+			if w, h, err := cli.ParseRes(field[:plus]); err == nil {
+				return w, h
+			}
+		}
+	}
+	return 0, 0
 }
 
 // listFrames lista los frames de un directorio, ordenados por número.
