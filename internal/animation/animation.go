@@ -46,6 +46,16 @@ const (
 )
 
 func Run(args []string, paths cli.ToolPaths) error {
+	// "-h"/"--help" en CUALQUIER subcomando muestra la ayuda del módulo.
+	// Sin esto, `animation steam-convert --help` trataba "--help" como el
+	// nombre del video y `animation shot --help` como el archivo de salida.
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			usage()
+			return nil
+		}
+	}
+
 	cmd := "x11"
 	rest := args
 

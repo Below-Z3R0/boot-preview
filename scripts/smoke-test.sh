@@ -64,6 +64,19 @@ empty() {
 	fi
 }
 
+# fails <nombre> <comando...>  (el comando tiene que salir con error)
+fails() {
+	local name="$1"
+	shift
+	if "$@" >/dev/null 2>&1; then
+		printf '  \033[31mFALLA\033[0m %s (salió con 0)\n' "$name"
+		fail=$((fail + 1))
+	else
+		printf '  \033[32mok\033[0m   %s\n' "$name"
+		pass=$((pass + 1))
+	fi
+}
+
 echo "Probando $BIN"
 echo
 
@@ -94,6 +107,19 @@ contains "subcomando desconocido avisa" "opción desconocida" "$BIN" animation n
 # Un comando que necesita sudo no debe dejar la terminal colgada: se
 # comprueba solo que no se cuelgue.
 check "animation use sin argumentos no cuelga" "$BIN" animation use --help
+
+# --help en un subcomando con argumento posicional: no es un nombre de
+# tema ni de video.
+contains "steam-convert --help muestra la ayuda" "boot-preview animation" \
+	"$BIN" animation steam-convert --help
+contains "loader add --help muestra la ayuda" "boot-preview loader" \
+	"$BIN" loader add --help
+
+# Los caminos de error salen con código distinto de 0.
+fails "un tema que no existe falla" "$BIN" animation use no-existe
+fails "un video que no existe falla" "$BIN" animation steam-convert /no/existe.webm
+fails "una resolución inválida falla" "$BIN" loader shot --res basura
+fails "un timeout inválido falla" "$BIN" loader shot --timeout abc
 
 # ── El control del daemon (dentro de animation) ───────────────────────
 contains "el help de animation lista status" "status" "$BIN" animation --help

@@ -31,9 +31,13 @@ func convertVideoToTheme(video, name string) error {
 	fps := videoFPS
 	res := ""
 	if env := os.Getenv("STEAM_FPS"); env != "" {
-		if v, err := strconv.Atoi(env); err == nil && v > 0 {
-			fps = v
+		// Igual que STEAM_RES: un valor basura NO se ignora en silencio
+		// (antes quedaba el fps del video y nadie se enteraba).
+		v, err := strconv.Atoi(env)
+		if err != nil || v <= 0 || v > 240 {
+			return fmt.Errorf("STEAM_FPS inválido: %q (fps entre 1 y 240)", env)
 		}
+		fps = v
 	}
 	if env := os.Getenv("STEAM_RES"); env != "" {
 		// Se valida acá: con un valor basura, parseRes caía en 1920x1080

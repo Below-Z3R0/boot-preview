@@ -100,6 +100,14 @@ func Run(args []string, paths cli.ToolPaths) error {
 		format:     "png",
 	}
 
+	// "-h"/"--help" en cualquier subcomando muestra la ayuda del módulo.
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			usage()
+			return nil
+		}
+	}
+
 	rest := args
 	if len(args) > 0 {
 		switch args[0] {
