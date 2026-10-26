@@ -173,5 +173,3 @@ func scaleImage(src, dest string, w, h int) error {
 
 	return fmt.Errorf("no se pudo escalar %s (hace falta imagemagick)", filepath.Base(src))
 }
-
-// imageSize devuelve el tamaño de una imagen, en píxeles.

@@ -48,22 +48,6 @@ contains() {
 	fi
 }
 
-# empty <nombre> <comando...>  (no debe imprimir nada)
-empty() {
-	local name="$1"
-	shift
-	local out
-	out="$("$@" 2>&1 | clean)"
-	if [[ -z "${out//[[:space:]]/}" ]]; then
-		printf '  \033[32mok\033[0m   %s\n' "$name"
-		pass=$((pass + 1))
-	else
-		printf '  \033[31mFALLA\033[0m %s\n' "$name"
-		printf '         obtuvo: %s\n' "$(echo "$out" | head -3 | tr '\n' ' ')"
-		fail=$((fail + 1))
-	fi
-}
-
 # fails <nombre> <comando...>  (el comando tiene que salir con error)
 fails() {
 	local name="$1"

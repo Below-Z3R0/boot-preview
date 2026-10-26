@@ -125,18 +125,15 @@ func ParseRes(res string) (int, int, error) {
 	return width, height, nil
 }
 
-// parseInt es strconv.Atoi sin el error: devuelve 0 si no puede.
+// parseInt convierte un string a un entero positivo.
+//
+// strconv hace el trabajo; lo que se agrega es el rechazo de 0 y de los
+// negativos ("0x0" no es una resolución).
 func parseInt(s string) (int, error) {
 	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, fmt.Errorf("vacío")
-	}
-	n := 0
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, fmt.Errorf("no es un número: %q", s)
-		}
-		n = n*10 + int(r-'0')
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("no es un número positivo: %q", s)
 	}
 	return n, nil
 }
@@ -184,15 +181,6 @@ func Contains(list []string, s string) bool {
 		}
 	}
 	return false
-}
-
-// ParseInt convierte un string a int, con un valor de reemplazo si no
-// se puede.
-func ParseInt(s string, fallback int) int {
-	if v, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
-		return v
-	}
-	return fallback
 }
 
 // ReplaceFile deja dest con el contenido de src, de forma atómica.

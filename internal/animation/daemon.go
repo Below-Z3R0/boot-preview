@@ -23,25 +23,6 @@ func pidFilePath() string {
 	return "/tmp/boot-preview-plymouthd.pid"
 }
 
-// findPlymouthd busca el PID del daemon de Plymouth.
-//
-// El daemon corre como root dentro de un namespace de mounts, asi que
-// no se puede finds por el proceso padre.
-func findPlymouthd() int {
-	// El daemon corre como root: el pgrep necesita ser root también, si
-	// no no lo ve.
-	out, err := cli.RunCombined("sudo", "pgrep", "-f", "plymouthd --no-daemon")
-	if err != nil {
-		return 0
-	}
-	for _, line := range strings.Split(out, "\n") {
-		if pid, err := strconv.Atoi(strings.TrimSpace(line)); err == nil {
-			return pid
-		}
-	}
-	return 0
-}
-
 // daemonRunning dice si ya hay un daemon de Plymouth corriendo.
 //
 // Lo usa `animation shot`: si el daemon ya está (porque el usuario dejó
