@@ -126,6 +126,12 @@ func downloadRelease(dir string) (string, error) {
 	// 1) El binario suelto, si la release lo trae.
 	suelto := filepath.Join(dir, "boot-preview")
 	if _, err := cli.RunCombined("curl", "-fsSL", base+"/boot-preview-linux-amd64", "-o", suelto); err == nil {
+		// curl deja el archivo sin el bit de ejecución (0644): sin esto,
+		// la validación con `version` falla con "permission denied" y el
+		// update dice "el binario descargado no funciona".
+		if err := os.Chmod(suelto, 0o755); err != nil {
+			return "", err
+		}
 		return suelto, nil
 	}
 
@@ -171,6 +177,9 @@ func extractBinary(bundle, dir string) (string, error) {
 
 	if encontrado == "" {
 		return "", fmt.Errorf("el bundle no trae un binario (¿es un release viejo?)")
+	}
+	if err := os.Chmod(encontrado, 0o755); err != nil {
+		return "", err
 	}
 	return encontrado, nil
 }
