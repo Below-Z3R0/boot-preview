@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -150,4 +151,63 @@ func claves(m map[string]*tar.Header) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestExtractBinaryDelBundle verifica el camino de update: bajar el
+// bundle y sacar el binario de adentro.
+//
+// El release viejo (v0.1.x) traia solo scripts Bash, asi que el extractor
+// no puede asumir el layout: busca el ejecutable "boot-preview" en
+// cualquier nivel.
+func TestExtractBinaryDelBundle(t *testing.T) {
+	dir, root := arbol(t)
+	bundle := filepath.Join(dir, "b.tar.gz")
+	if err := writeTarGz(bundle, root); err != nil {
+		t.Fatalf("writeTarGz: %v", err)
+	}
+
+	got, err := extractBinary(bundle, t.TempDir())
+	if err != nil {
+		t.Fatalf("extractBinary: %v", err)
+	}
+	data, err := os.ReadFile(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "#!/bin/sh\n" {
+		t.Errorf("extrajo otro archivo: %q", data)
+	}
+	info, err := os.Stat(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Errorf("el binario extraido no es ejecutable: %o", info.Mode())
+	}
+}
+
+// TestExtractBinarySinBinario falla con un mensaje claro.
+//
+// Es el caso del release v0.1.1: trae scripts, no un binario Go.
+func TestExtractBinarySinBinario(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "viejo")
+	if err := os.MkdirAll(filepath.Join(root, "scripts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scripts", "install.sh"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bundle := filepath.Join(dir, "viejo.tar.gz")
+	if err := writeTarGz(bundle, root); err != nil {
+		t.Fatalf("writeTarGz: %v", err)
+	}
+
+	_, err := extractBinary(bundle, t.TempDir())
+	if err == nil {
+		t.Fatal("acepto un bundle sin binario")
+	}
+	if !strings.Contains(err.Error(), "no trae un binario") {
+		t.Errorf("mensaje poco claro: %v", err)
+	}
 }

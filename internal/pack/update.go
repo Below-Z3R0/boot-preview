@@ -28,7 +28,7 @@ func update(paths cli.ToolPaths) error {
 		return updateFromGit(paths)
 	}
 
-	cli.Say("Sin repo local: descargando el binario de %s", remoteURL)
+	cli.Say("Sin repo local: descargando de %s", remoteURL)
 	return updateFromNetwork(paths)
 }
 
@@ -73,29 +73,33 @@ func updateFromGit(paths cli.ToolPaths) error {
 	return nil
 }
 
-// updateFromNetwork descarga el binario de GitHub.
+// updateFromNetwork descarga la última versión de GitHub.
+//
+// La release publica el bundle (boot-preview.tar.gz) con el binario y los
+// assets adentro. El binario suelto es opcional: si está, se usa; si no, se
+// extrae del bundle.
+//
+// Antes se pedía siempre "boot-preview-linux-amd64", que la release no
+// publica: el update daba 404 y el camino de red no funcionaba nunca.
 func updateFromNetwork(paths cli.ToolPaths) error {
 	if !cli.HaveCommand("curl") {
 		cli.Warn("necesita curl")
 		return fmt.Errorf("falta curl")
 	}
 
-	url := remoteURL + "/releases/latest/download/boot-preview-linux-amd64"
-	tmp, err := os.CreateTemp("", "boot-preview.*")
+	tmp, err := os.MkdirTemp("", "boot-preview-update.*")
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
-	tmp.Close()
+	defer os.RemoveAll(tmp)
 
-	if out, err := cli.RunCombined("curl", "-fsSL", url, "-o", tmp.Name()); err != nil {
-		cli.Warn("no se pudo descargar (¿sin red?)")
-		cli.Say("%s", out)
-		return fmt.Errorf("no se pudo descargar la actualización")
+	bin, err := downloadRelease(tmp)
+	if err != nil {
+		return err
 	}
 
-	// Se comprueba que el binario funciona antes de pisar el instalado.
-	if out, err := cli.RunCombined(tmp.Name(), "version"); err != nil {
+	// Se comprueba que funciona antes de pisar el instalado.
+	if out, err := cli.RunCombined(bin, "version"); err != nil {
 		cli.Warn("el binario descargado no funciona")
 		cli.Say("%s", out)
 		return fmt.Errorf("el binario descargado no funciona")
@@ -105,13 +109,70 @@ func updateFromNetwork(paths cli.ToolPaths) error {
 	if err := os.MkdirAll(paths.Bin, 0o755); err != nil {
 		return err
 	}
-	// ReplaceFile y no CopyFile: si estás actualizando desde el binario
-	// instalado, copiar sobre él da "text file busy".
-	if err := cli.ReplaceFile(tmp.Name(), dest); err != nil {
+	// ReplaceFile: si estás actualizando desde el binario instalado,
+	// copiar sobre él da "text file busy".
+	if err := cli.ReplaceFile(bin, dest); err != nil {
 		return err
 	}
 	cli.Ok("binario actualizado")
 	return nil
+}
+
+// downloadRelease deja el binario de la última release en dir y devuelve
+// su ruta.
+func downloadRelease(dir string) (string, error) {
+	base := remoteURL + "/releases/latest/download"
+
+	// 1) El binario suelto, si la release lo trae.
+	suelto := filepath.Join(dir, "boot-preview")
+	if _, err := cli.RunCombined("curl", "-fsSL", base+"/boot-preview-linux-amd64", "-o", suelto); err == nil {
+		return suelto, nil
+	}
+
+	// 2) El bundle, que es lo que sí publica.
+	if !cli.HaveCommand("tar") {
+		return "", fmt.Errorf("falta tar (para extraer el binario del bundle)")
+	}
+	bundle := filepath.Join(dir, "bundle.tar.gz")
+	if out, err := cli.RunCombined("curl", "-fsSL", base+"/boot-preview.tar.gz", "-o", bundle); err != nil {
+		cli.Warn("no se pudo descargar (¿sin red?)")
+		cli.Say("%s", out)
+		return "", fmt.Errorf("no se pudo descargar la actualización")
+	}
+	return extractBinary(bundle, dir)
+}
+
+// extractBinary extrae el bundle y devuelve la ruta del binario.
+//
+// No se asume el layout: el bundle viejo (v0.1.x) traía solo scripts Bash y
+// el nuevo trae boot-preview/boot-preview. Se busca el ejecutable llamado
+// "boot-preview" en cualquier nivel.
+func extractBinary(bundle, dir string) (string, error) {
+	extraido := filepath.Join(dir, "extraido")
+	if err := os.MkdirAll(extraido, 0o755); err != nil {
+		return "", err
+	}
+	if out, err := cli.RunCombined("tar", "-xzf", bundle, "-C", extraido); err != nil {
+		cli.Say("%s", out)
+		return "", fmt.Errorf("el bundle no se pudo extraer")
+	}
+
+	var encontrado string
+	_ = filepath.Walk(extraido, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if filepath.Base(path) == "boot-preview" && info.Mode()&0o111 != 0 {
+			encontrado = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
+
+	if encontrado == "" {
+		return "", fmt.Errorf("el bundle no trae un binario (¿es un release viejo?)")
+	}
+	return encontrado, nil
 }
 
 // reinstall reconstruye el binario y lo vuelve a instalar.
