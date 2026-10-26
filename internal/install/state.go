@@ -51,7 +51,7 @@ func writeState(paths cli.ToolPaths, what string) error {
 		var old state
 		if json.Unmarshal(data, &old) == nil {
 			for _, c := range old.Components {
-				if !contains(st.Components, c) {
+				if !cli.Contains(st.Components, c) {
 					st.Components = append(st.Components, c)
 				}
 			}

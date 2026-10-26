@@ -9,16 +9,6 @@ import (
 // Se inyecta en el build con -ldflags "-X ...install.Version=v1.2.3".
 var Version = func() string { return "dev" }
 
-// contains dice si la lista tiene ese elemento.
-func contains(list []string, s string) bool {
-	for _, item := range list {
-		if item == s {
-			return true
-		}
-	}
-	return false
-}
-
 // sortStrings ordena la lista en el lugar (por referencia).
 func sortStrings(list []string) {
 	for i := 1; i < len(list); i++ {

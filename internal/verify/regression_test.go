@@ -1,6 +1,10 @@
 package verify
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Below-Z3R0/boot-preview/internal/cli"
+)
 
 // TestContainsVerificaElComponente verifica el helper que decide qué
 // módulos hay que verificar.
@@ -10,14 +14,14 @@ import "testing"
 func TestContainsVerificaElComponente(t *testing.T) {
 	componentes := []string{"animation"}
 
-	if !contains(componentes, "animation") {
-		t.Error("contains() dio false para 'animation'")
+	if !cli.Contains(componentes, "animation") {
+		t.Error("cli.Contains() dio false para 'animation'")
 	}
-	if contains(componentes, "loader") {
-		t.Error("contains() dio true para 'loader', que no esta instalado")
+	if cli.Contains(componentes, "loader") {
+		t.Error("cli.Contains() dio true para 'loader', que no esta instalado")
 	}
-	if contains(nil, "loader") {
-		t.Error("contains() dio true con la lista vacia")
+	if cli.Contains(nil, "loader") {
+		t.Error("cli.Contains() dio true con la lista vacia")
 	}
 }
 

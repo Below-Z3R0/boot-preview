@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -53,14 +52,6 @@ func nowSeconds() int64 {
 // timestamp devuelve el timestamp para los nombres de archivo.
 func timestamp() string {
 	return time.Now().Format("20060102-150405")
-}
-
-// parseInt convierte un string a int, con un default.
-func parseInt(s string, fallback int) int {
-	if v, err := strconv.Atoi(s); err == nil {
-		return v
-	}
-	return fallback
 }
 
 // ensureDir crea un directorio si no existe.

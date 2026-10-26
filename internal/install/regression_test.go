@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
 
 // TestSameFileDetectaElMismoArchivo verifica la deteccion de "el
@@ -65,14 +67,14 @@ func TestInstallBinarySobreSiMismoNoFalla(t *testing.T) {
 func TestContainsVerificaElComponente(t *testing.T) {
 	componentes := []string{"loader", "animation"}
 
-	if !contains(componentes, "loader") {
-		t.Error("contains() dio false para 'loader'")
+	if !cli.Contains(componentes, "loader") {
+		t.Error("cli.Contains() dio false para 'loader'")
 	}
-	if contains(componentes, "otro") {
-		t.Error("contains() dio true para 'otro'")
+	if cli.Contains(componentes, "otro") {
+		t.Error("cli.Contains() dio true para 'otro'")
 	}
-	if contains(nil, "loader") {
-		t.Error("contains() dio true con la lista vacia")
+	if cli.Contains(nil, "loader") {
+		t.Error("cli.Contains() dio true con la lista vacia")
 	}
 }
 

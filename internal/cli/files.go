@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -169,4 +170,23 @@ func ImageSize(path string) (int, int) {
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// Contains dice si la lista tiene ese elemento.
+func Contains(list []string, s string) bool {
+	for _, item := range list {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseInt convierte un string a int, con un valor de reemplazo si no
+// se puede.
+func ParseInt(s string, fallback int) int {
+	if v, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
+		return v
+	}
+	return fallback
 }

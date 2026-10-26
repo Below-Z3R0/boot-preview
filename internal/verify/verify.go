@@ -103,8 +103,8 @@ func Run(paths cli.ToolPaths) error {
 	hasLoader := true
 	hasAnimation := true
 	if hasState {
-		hasLoader = contains(st.Components, "loader")
-		hasAnimation = contains(st.Components, "animation")
+		hasLoader = cli.Contains(st.Components, "loader")
+		hasAnimation = cli.Contains(st.Components, "animation")
 	}
 
 	if hasLoader {
@@ -206,16 +206,6 @@ const (
 	colorDim  = "\033[38;2;146;136;158m"
 	colorOff  = "\033[0m"
 )
-
-// contains dice si la lista tiene ese elemento.
-func contains(list []string, s string) bool {
-	for _, item := range list {
-		if item == s {
-			return true
-		}
-	}
-	return false
-}
 
 // row imprime una línea de la tabla de verificación.
 func row(ok bool, name, value string) {
