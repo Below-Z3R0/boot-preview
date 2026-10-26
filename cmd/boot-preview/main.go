@@ -23,9 +23,6 @@ import (
 	"github.com/Below-Z3R0/boot-preview/internal/verify"
 )
 
-// version se inyecta en el build con -ldflags "-X main.version=v1.2.3".
-var version = "dev"
-
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
@@ -61,7 +58,7 @@ func run(args []string) error {
 	case "bundle":
 		return pack.Bundle(paths)
 	case "version", "--version":
-		fmt.Printf("boot-preview %s\n", version)
+		fmt.Printf("boot-preview %s\n", install.Version)
 		return nil
 	case "help", "-h", "--help":
 		usage()
