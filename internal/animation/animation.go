@@ -29,6 +29,8 @@ package animation
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
@@ -56,6 +58,14 @@ func Run(args []string, paths cli.ToolPaths) error {
 			cmd = args[0]
 			rest = args[1:]
 		default:
+			// Un número (los segundos) o una opción (-f) son del preview:
+			// `animation 30` y `animation --foreground` tienen que
+			// funcionar. Antes cualquier cosa que no fuera subcomando daba
+			// "opción desconocida", así que el límite de tiempo del usage
+			// no se podía usar.
+			if _, err := strconv.Atoi(args[0]); err == nil || strings.HasPrefix(args[0], "-") {
+				break
+			}
 			// Un subcomando que no existe tiene que avisar, no abrir la
 			// ventana como si fuera el preview.
 			return fmt.Errorf("opción desconocida: %s", args[0])

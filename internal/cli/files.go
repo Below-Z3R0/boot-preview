@@ -83,7 +83,11 @@ func HumanSize(bytes int64) string {
 	if size < unit*unit {
 		return fmt.Sprintf("%.0fK", size/unit)
 	}
-	return fmt.Sprintf("%.1fM", size/(unit*unit))
+	if size < unit*unit*unit {
+		return fmt.Sprintf("%.1fM", size/(unit*unit))
+	}
+	// Un tema con muchos frames pasa de 1 GB.
+	return fmt.Sprintf("%.1fG", size/(unit*unit*unit))
 }
 
 // DirSize devuelve el tamaño total de una carpeta.
