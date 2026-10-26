@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
@@ -123,9 +125,15 @@ func updateFromNetwork(paths cli.ToolPaths) error {
 func downloadRelease(dir string) (string, error) {
 	base := remoteURL + "/releases/latest/download"
 
+	// El redirect de /releases/latest/download se cachea unos minutos en
+	// el CDN de GitHub: justo después de publicar, "latest" sigue
+	// apuntando a la versión anterior. Con un query distinto, cada
+	// corrida resuelve el latest de verdad.
+	cache := "?cb=" + strconv.FormatInt(time.Now().Unix(), 10)
+
 	// 1) El binario suelto, si la release lo trae.
 	suelto := filepath.Join(dir, "boot-preview")
-	if _, err := cli.RunCombined("curl", "-fsSL", base+"/boot-preview-linux-amd64", "-o", suelto); err == nil {
+	if _, err := cli.RunCombined("curl", "-fsSL", base+"/boot-preview-linux-amd64"+cache, "-o", suelto); err == nil {
 		// curl deja el archivo sin el bit de ejecución (0644): sin esto,
 		// la validación con `version` falla con "permission denied" y el
 		// update dice "el binario descargado no funciona".
@@ -140,7 +148,7 @@ func downloadRelease(dir string) (string, error) {
 		return "", fmt.Errorf("falta tar (para extraer el binario del bundle)")
 	}
 	bundle := filepath.Join(dir, "bundle.tar.gz")
-	if out, err := cli.RunCombined("curl", "-fsSL", base+"/boot-preview.tar.gz", "-o", bundle); err != nil {
+	if out, err := cli.RunCombined("curl", "-fsSL", base+"/boot-preview.tar.gz"+cache, "-o", bundle); err != nil {
 		cli.Warn("no se pudo descargar (¿sin red?)")
 		cli.Say("%s", out)
 		return "", fmt.Errorf("no se pudo descargar la actualización")
