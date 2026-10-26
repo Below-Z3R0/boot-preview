@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -34,6 +35,20 @@ func Run(name string, args ...string) (string, error) {
 // RunCombined ejecuta un comando con stderr mezclado.
 func RunCombined(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
+	out, err := cmd.CombinedOutput()
+	return strings.TrimRight(string(out), "\n"), err
+}
+
+// RunTimeout ejecuta un comando y lo mata si tarda más de lo indicado.
+//
+// Algunos comandos hablan con un daemon y se quedan esperando la
+// respuesta: `plymouth --quit` espera 30 s a un plymouthd que ya no
+// contesta. Sin deadline, el comando que los llama hereda esa espera.
+func RunTimeout(d time.Duration, name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, name, args...)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimRight(string(out), "\n"), err
 }

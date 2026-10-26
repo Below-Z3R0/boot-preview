@@ -29,7 +29,7 @@ func pidFilePath() string {
 // la ventana abierta), el shot reutiliza esa ventana en vez de levantar
 // un daemon nuevo. Si no, levanta el suyo.
 func daemonRunning() bool {
-	out, err := cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
+	out, err := cli.RunTimeout(2*time.Second, "sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
 	return err == nil && strings.TrimSpace(out) != ""
 }
 
@@ -55,10 +55,29 @@ func StopPlymouth() error {
 		pid, _ = strconv.Atoi(strings.TrimSpace(string(data)))
 	}
 	if pid > 0 {
+		// El wrapper de sudo/unshare es el padre del plymouthd y el
+		// dueño del grupo: un `kill -pid` apunta al grupo equivocado
+		// y no lo toca.
+		parent := ppidOf(pid)
+
 		// El grupo entero: el plymouthd y su wrapper de sudo/unshare.
-		_, _ = cli.RunCombined("sudo", "kill", "-TERM", "-"+strconv.Itoa(pid))
-		// Y el plymouthd solo, por si el grupo ya no está.
+		if parent > 0 {
+			_, _ = cli.RunCombined("sudo", "kill", "-TERM", "-"+strconv.Itoa(parent))
+		}
+		// Y el plymouthd solo.
 		_, _ = cli.RunCombined("sudo", "kill", "-TERM", strconv.Itoa(pid))
+
+		// plymouthd en modo boot con el renderer X11 no muere con el
+		// TERM: se queda vivo y el `plymouth --quit` de abajo espera
+		// su confirmación durante 30 s. Se le da un margen corto y,
+		// si sigue ahí, se lo mata sin pedir permiso.
+		if !waitDead(pid, time.Second) {
+			_, _ = cli.RunCombined("sudo", "kill", "-KILL", strconv.Itoa(pid))
+			if parent > 0 {
+				_, _ = cli.RunCombined("sudo", "kill", "-KILL", "-"+strconv.Itoa(parent))
+				_, _ = cli.RunCombined("sudo", "kill", "-KILL", strconv.Itoa(parent))
+			}
+		}
 	}
 	// El archivo lo crea el bash del daemon COMO ROOT: os.Remove desde
 	// el usuario da EPERM por el sticky bit de /tmp, y el archivo quedaba
@@ -66,12 +85,52 @@ func StopPlymouth() error {
 	_, _ = cli.RunCombined("sudo", "rm", "-f", pidFilePath())
 
 	// Y por las dudas, el comando propio de Plymouth.
-	_, _ = cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--quit")
+	//
+	// Con deadline: si el daemon ya no está pero el socket quedó
+	// abierto, el cliente espera 30 s a que le contesten.
+	_, _ = cli.RunTimeout(2*time.Second, "sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--quit")
 
 	// La limpieza de lo que dejó el daemon: el tema copiado a /run y la
 	// config temporal montada sobre /etc/plymouth.
 	cleanupPreviewFiles()
 	return nil
+}
+
+// waitDead espera hasta d a que el proceso deje de existir.
+//
+// kill -0 desde el usuario da EPERM sobre un proceso de root, así que
+// la consulta va por sudo igual que el kill.
+func waitDead(pid int, d time.Duration) bool {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if _, err := cli.RunCombined("sudo", "kill", "-0", strconv.Itoa(pid)); err != nil {
+			return true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
+}
+
+// ppidOf devuelve el PID del padre según /proc, o 0 si el proceso ya
+// no existe.
+func ppidOf(pid int) int {
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return 0
+	}
+	// El campo 2 (comm) puede tener espacios y paréntesis: se toma el
+	// último ')' y se cuenta desde ahí.
+	s := string(data)
+	i := strings.LastIndex(s, ")")
+	if i < 0 {
+		return 0
+	}
+	fields := strings.Fields(s[i+1:])
+	if len(fields) < 2 {
+		return 0
+	}
+	parent, _ := strconv.Atoi(fields[1])
+	return parent
 }
 
 // cleanupPreviewFiles borra el tema de /run y las configs temporales.
