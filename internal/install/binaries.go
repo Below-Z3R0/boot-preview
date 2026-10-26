@@ -1,6 +1,7 @@
 package install
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -39,15 +40,16 @@ func installBinaries(paths cli.ToolPaths, wantLoader, wantAnimation bool) error 
 		return err
 	}
 
+	// Del repo si tiene examples. Si no (repo a medias, o instalado
+	// desde el bundle), al lado del binario que se está ejecutando.
 	origen := ""
-	switch {
-	case paths.Repo != "":
+	if paths.Repo != "" && dirExists(filepath.Join(paths.Repo, "examples")) {
 		origen = filepath.Join(paths.Repo, "examples")
-	default:
-		// Al lado del binario que se está ejecutando.
+	}
+	if origen == "" {
 		if exe, err := os.Executable(); err == nil {
 			candidata := filepath.Join(filepath.Dir(exe), "assets")
-			if _, err := os.Stat(candidata); err == nil {
+			if dirExists(candidata) {
 				origen = candidata
 			}
 		}
@@ -123,22 +125,14 @@ func sameFile(a, b string) bool {
 }
 
 // installSudoShim deja un wrapper en /usr/local/bin.
+//
+// El path del binario se embebe al instalar: dentro de sudo, $HOME es
+// /root, asi que "${HOME}/.local/bin/boot-preview" no existe. Antes el
+// fallback era un path hardcodeado al home de un usuario en particular.
 func installSudoShim(paths cli.ToolPaths) error {
-	const shim = `#!/usr/bin/env bash
-# Wrapper de boot-preview para poder correrlo con ` + "`sudo`" + `.
-# ` + "`sudo boot-preview`" + ` falla con "command not found" porque ~/.local/bin
-# no está en el secure_path de sudo. Si lo invoca root, baja al usuario que
-# lo lanzó: QEMU no debe correr como root (no tiene acceso al socket gráfico).
-set -euo pipefail
-script="${HOME}/.local/bin/boot-preview"
-if [[ ! -x "$script" ]]; then
-  script="/home/b3low-z3r0/.local/bin/boot-preview"
-fi
-if [[ "$(id -u)" == "0" && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
-  exec sudo -u "$SUDO_USER" "$script" "$@"
-fi
-exec "$script" "$@"
-`
+	script := filepath.Join(paths.Bin, "boot-preview")
+
+	shim := sudoShim(script)
 
 	tmp, err := os.CreateTemp("", "boot-preview-shim.*")
 	if err != nil {
@@ -162,3 +156,30 @@ exec "$script" "$@"
 }
 
 // installConfig crea la configuración de lo instalado.
+
+// dirExists dice si el path existe y es un directorio.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// sudoShim arma el wrapper de /usr/local/bin.
+//
+// Va aparte para poder testearlo: installSudoShim escribe en
+// /usr/local/bin, que es del sistema.
+func sudoShim(script string) string {
+	// %q deja el path entre comillas y escapado para bash.
+	return fmt.Sprintf(`#!/usr/bin/env bash
+# Wrapper de boot-preview para poder correrlo con sudo.
+# 'sudo boot-preview' falla con "command not found" porque ~/.local/bin
+# no esta en el secure_path de sudo. Si lo invoca root, baja al usuario
+# que lo lanzo: QEMU no debe correr como root (no tiene acceso al socket
+# grafico).
+set -euo pipefail
+script=%q
+if [[ "$(id -u)" == "0" && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  exec sudo -u "$SUDO_USER" "$script" "$@"
+fi
+exec "$script" "$@"
+`, script)
+}

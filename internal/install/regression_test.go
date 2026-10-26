@@ -2,7 +2,9 @@ package install
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
@@ -86,5 +88,43 @@ func TestSortStringsOrdena(t *testing.T) {
 
 	if lista[0] != "animation" || lista[1] != "loader" || lista[2] != "zebra" {
 		t.Errorf("sortStrings() = %v", lista)
+	}
+}
+
+// TestSudoShimUsaElPathReal verifica que el wrapper apunta al binario de
+// ESTE usuario.
+//
+// El bug: dentro de sudo, $HOME es /root, asi que "${HOME}/.local/bin/
+// boot-preview" no existe; el fallback era un path hardcodeado al home
+// de un usuario en particular, que no le sirve a nadie mas.
+func TestSudoShimUsaElPathReal(t *testing.T) {
+	shim := sudoShim("/home/otro/.local/bin/boot-preview")
+
+	if !strings.Contains(shim, `script="/home/otro/.local/bin/boot-preview"`) {
+		t.Errorf("el shim no apunta al binario real:\n%s", shim)
+	}
+	for _, malo := range []string{"b3low-z3r0", "${HOME}/.local"} {
+		if strings.Contains(shim, malo) {
+			t.Errorf("el shim tiene %q, que no es portable:\n%s", malo, shim)
+		}
+	}
+	// Baja de root al usuario que lanzo sudo.
+	if !strings.Contains(shim, `exec sudo -u "$SUDO_USER" "$script" "$@"`) {
+		t.Errorf("el shim no baja de root al usuario:\n%s", shim)
+	}
+}
+
+// TestSudoShimEsBashValido verifica que el shim pasa bash -n.
+func TestSudoShimEsBashValido(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("sin bash")
+	}
+
+	path := filepath.Join(t.TempDir(), "shim")
+	if err := os.WriteFile(path, []byte(sudoShim("/home/x/.local/bin/boot-preview")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("bash", "-n", path).CombinedOutput(); err != nil {
+		t.Errorf("bash -n fallo: %s\n%s", err, out)
 	}
 }

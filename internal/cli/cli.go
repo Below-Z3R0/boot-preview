@@ -138,13 +138,20 @@ func NewPaths() ToolPaths {
 
 // isRepo dice si una carpeta es el repo de boot-preview.
 //
-// Se reconoce por el go.mod (repo de desarrollo) o por los examples (repo
-// clonado sin compilar).
+// Se reconoce por el go.mod DEL módulo o por el árbol de fuentes.
+//
+// NO alcanza con que exista un go.mod cualquiera, ni con "examples" o
+// "scripts": casi cualquier proyecto tiene un scripts/, y el loop de
+// NewPaths llega hasta dos niveles arriba del binario, o sea el home del
+// usuario. Con esos marcadores, ~/ pasaba por repo y las capturas se
+// guardaban en ~/previews/.
 func isRepo(dir string) bool {
-	for _, marker := range []string{"go.mod", "examples", "scripts"} {
-		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
-			return true
-		}
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err == nil && strings.Contains(string(data), "module github.com/Below-Z3R0/boot-preview") {
+		return true
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cmd", "boot-preview", "main.go")); err == nil {
+		return true
 	}
 	return false
 }

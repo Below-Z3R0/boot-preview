@@ -102,21 +102,20 @@ Para instalar solo una parte:
 }
 
 // writeTarGz escribe un directorio como tar.gz.
+//
+// Los Close no se pueden diferir: si el flush final falla, el tar queda
+// corrupto y el comando no puede decir que salio bien.
 func writeTarGz(dest, root string) error {
 	file, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
 	gz := gzip.NewWriter(file)
-	defer gz.Close()
-
 	tw := tar.NewWriter(gz)
-	defer tw.Close()
 
 	base := filepath.Dir(root)
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	walkErr := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -128,7 +127,8 @@ func writeTarGz(dest, root string) error {
 		if err != nil {
 			return err
 		}
-		header.Name = rel
+		// El tar usa "/" siempre, tambien en Windows.
+		header.Name = filepath.ToSlash(rel)
 		// Timestamp fijo: el build es reproducible.
 		header.ModTime = fixedTime()
 		header.AccessTime = fixedTime()
@@ -146,18 +146,39 @@ func writeTarGz(dest, root string) error {
 		if err := tw.WriteHeader(header); err != nil {
 			return err
 		}
-		if info.Mode().IsRegular() {
-			src, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer src.Close()
-			if _, err := io.Copy(tw, src); err != nil {
-				return err
-			}
+		if !info.Mode().IsRegular() {
+			return nil
 		}
-		return nil
+		src, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		// Se cierra en cada vuelta: con defer, los fds se acumulan hasta
+		// el final del Walk.
+		_, copyErr := io.Copy(tw, src)
+		closeErr := src.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
 	})
+
+	if walkErr != nil {
+		_ = tw.Close()
+		_ = gz.Close()
+		_ = file.Close()
+		return walkErr
+	}
+	if err := tw.Close(); err != nil {
+		_ = gz.Close()
+		_ = file.Close()
+		return err
+	}
+	if err := gz.Close(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 // fixedTime es el timestamp fijo del build reproducible: dos builds del

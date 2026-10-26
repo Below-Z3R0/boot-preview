@@ -55,18 +55,29 @@ func TestPreviewsRootSinRepo(t *testing.T) {
 // TestIsRepoDetectaElRepo verifica la deteccion del repo.
 //
 // El bug: buscaba loader.sh (el script de bash) y con el repo en Go no
-// lo encontraba.
+// lo encontraba. Despues se aceptaba cualquier go.mod, y con el loop de
+// NewPaths (dos niveles arriba) el home del usuario pasaba por repo.
 func TestIsRepoDetectaElRepo(t *testing.T) {
 	dir := t.TempDir()
 	if isRepo(dir) {
 		t.Error("isRepo() dio true para una carpeta vacia")
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+	// Un go.mod ajeno no alcanza.
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module otra-cosa\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if isRepo(dir) {
+		t.Error("isRepo() dio true con un go.mod de otro modulo")
+	}
+
+	// El del modulo si.
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"),
+		[]byte("module github.com/Below-Z3R0/boot-preview\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if !isRepo(dir) {
-		t.Error("isRepo() dio false con un go.mod adentro")
+		t.Error("isRepo() dio false con el go.mod del modulo")
 	}
 }
 

@@ -8,18 +8,50 @@ import (
 )
 
 func TestIsRepo(t *testing.T) {
-	// Una carpeta con go.mod es el repo.
+	// El go.mod DEL módulo: sí.
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"),
+		[]byte("module github.com/Below-Z3R0/boot-preview\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if !isRepo(dir) {
-		t.Error("isRepo() dio false con un go.mod adentro")
+		t.Error("isRepo() dio false con el go.mod del módulo")
 	}
 
 	// Una carpeta vacía no.
 	if isRepo(t.TempDir()) {
 		t.Error("isRepo() dio true con una carpeta vacia")
+	}
+
+	// Un go.mod CUALQUIERA no alcanza: con eso, el home del usuario (que
+	// puede tener cualquier cosa) pasaba por repo.
+	ajeno := t.TempDir()
+	if err := os.WriteFile(filepath.Join(ajeno, "go.mod"), []byte("module otra-cosa\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if isRepo(ajeno) {
+		t.Error("isRepo() dio true con un go.mod de otro módulo")
+	}
+
+	// Un scripts/ suelto tampoco: lo tiene casi cualquier proyecto.
+	conScripts := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(conScripts, "scripts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if isRepo(conScripts) {
+		t.Error("isRepo() dio true solo por tener scripts/")
+	}
+
+	// El árbol de fuentes sí.
+	fuentes := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(fuentes, "cmd", "boot-preview"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fuentes, "cmd", "boot-preview", "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !isRepo(fuentes) {
+		t.Error("isRepo() dio false con el árbol de fuentes")
 	}
 }
 
