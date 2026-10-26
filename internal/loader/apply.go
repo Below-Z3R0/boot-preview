@@ -73,39 +73,61 @@ func cmdApply(opts options, paths cli.ToolPaths) error {
 // Los backups se nombran con un timestamp, así que el orden alfabético
 // es también el orden temporal.
 func pruneBackups(prefix string, keep int) {
-	entries, err := os.ReadDir("/boot")
+	// /boot es la ESP en vfat con dmask=0077: os.ReadDir devuelve
+	// EACCES y los backups se acumulaban sin tope. Se lista con sudo.
+	out, err := cli.RunCombined("sudo", "ls", "-1", "/boot")
 	if err != nil {
 		return
 	}
 
 	var backups []string
-	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), prefix) {
-			backups = append(backups, filepath.Join("/boot", entry.Name()))
+	for _, name := range strings.Split(out, "\n") {
+		name = strings.TrimSpace(name)
+		if strings.HasPrefix(name, prefix) {
+			backups = append(backups, filepath.Join("/boot", name))
 		}
 	}
 	if len(backups) <= keep {
 		return
 	}
 
-	// ReadDir ya viene ordenado por nombre.
+	// ls -1 ya viene ordenado por nombre, y el nombre lleva timestamp.
 	for _, old := range backups[:len(backups)-keep] {
 		_, _ = cli.RunCombined("sudo", "rm", "-f", old)
 	}
+}
+
+// bootFileExists dice si existe un archivo de /boot.
+//
+// No alcanza con os.Stat: /boot es de root y vfat con dmask=0077, asi
+// que el usuario recibe EACCES en vez de ENOENT, y el codigo confundia
+// "no puedo leerlo" con "no existe".
+func bootFileExists(path string) bool {
+	_, err := cli.RunCombined("sudo", "test", "-e", path)
+	return err == nil
+}
+
+// readBootFile lee un archivo de /boot con sudo.
+func readBootFile(path string) ([]byte, error) {
+	out, err := cli.RunCombined("sudo", "cat", path)
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo leer %s: %s", path, strings.TrimSpace(out))
+	}
+	return []byte(out), nil
 }
 
 // applyThemeBlock inyecta el bloque de theming en /boot/limine.conf.
 func applyThemeBlock(paths cli.ToolPaths) error {
 	previewPath := filepath.Join(paths.LoaderConfig(), "limine.conf")
 
-	if _, err := os.Stat("/boot/limine.conf"); err != nil {
+	if !bootFileExists("/boot/limine.conf") {
 		cli.Warn("No existe /boot/limine.conf")
 		cli.Say("apply solo reescribe el bloque de theming; las entradas del")
 		cli.Say("menú no se pueden reconstruir desde acá.")
 		cli.Say("Restauralo desde un backup:")
 		cli.Say("  sudo ls -1t /boot/limine.conf.bak-* /boot/limine.conf.old")
 		cli.Say("  sudo cp /boot/limine.conf.bak-XXXX /boot/limine.conf")
-		return fmt.Errorf("")
+		return fmt.Errorf("no existe /boot/limine.conf")
 	}
 
 	preview, err := os.ReadFile(previewPath)
@@ -122,15 +144,11 @@ func applyThemeBlock(paths cli.ToolPaths) error {
 
 	// El wallpaper del preview apunta al ISO (boot():/wallpaper.png); en el
 	// Limine real va a /boot/splash.png.
-	for i, line := range block {
-		if strings.HasPrefix(line, "wallpaper:") {
-			block[i] = "wallpaper: boot():/splash.png"
-		}
-	}
+	rewriteWallpaperForReal(block)
 
-	real, err := os.ReadFile("/boot/limine.conf")
+	real, err := readBootFile("/boot/limine.conf")
 	if err != nil {
-		return fmt.Errorf("no se pudo leer /boot/limine.conf: %w", err)
+		return err
 	}
 
 	// Se quitan las opciones de theming del conf real (y el bloque
@@ -233,4 +251,19 @@ func isOwnComment(line string) bool {
 		}
 	}
 	return false
+}
+
+// rewriteWallpaperForReal cambia el wallpaper del preview (el del ISO)
+// por el de la ESP.
+//
+// Se matchea con la misma regex que usa la extracción: la línea puede
+// venir indentada o con espacios antes de los dos puntos
+// ("  wallpaper : boot():/wallpaper.png").
+func rewriteWallpaperForReal(block []string) {
+	for i, line := range block {
+		match := optionRe.FindStringSubmatch(line)
+		if match != nil && match[1] == "wallpaper" {
+			block[i] = "wallpaper: boot():/splash.png"
+		}
+	}
 }

@@ -24,9 +24,22 @@ func cmdAdd(opts options, paths cli.ToolPaths) error {
 	}
 	target := filepath.Join(wallDir, "wallpaper.png")
 
+	// La resolución se valida siempre: si esta mal, el comando falla
+	// aca y no despues, con un error de magick que no explica nada.
+	if opts.resolution != "" {
+		if _, _, err := cli.ParseRes(opts.resolution); err != nil {
+			return err
+		}
+	}
+
+	// La imagen se prepara si hay algo que preparar: blur, velo o un
+	// cambio de resolución.
+	//
 	// Limine no puede difuminar: dibuja la imagen tal cual. Si el blur
 	// está pedido, se aplica ANTES, al preparar el fichero.
-	if opts.blur != "0x0" || opts.dim > 0 || opts.overlay != "" {
+	hayBlur := opts.blur != "0x0" || opts.dim > 0 || opts.overlay != ""
+	hayRes := opts.resolution != "" && opts.resolution != defaultResolution
+	if hayBlur || hayRes {
 		cli.Step("Preparando el wallpaper")
 		if err := wallpaper.Prepare(wallpaper.Options{
 			Src:     opts.addImage,

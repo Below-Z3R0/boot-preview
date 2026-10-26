@@ -1,6 +1,7 @@
 package loader
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -97,9 +98,11 @@ func cmdPreview(opts options, paths cli.ToolPaths) error {
 	// cierra.
 	args = append(args, "-display", "sdl")
 
+	var qemuErr bytes.Buffer
+
 	cmd := exec.Command("qemu-system-x86_64", args...)
 	cmd.Stdout = nil
-	cmd.Stderr = nil
+	cmd.Stderr = &qemuErr
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("no se pudo arrancar QEMU: %w", err)
 	}
@@ -109,11 +112,16 @@ func cmdPreview(opts options, paths cli.ToolPaths) error {
 	}()
 
 	// Espera a que el monitor responda.
+	ready := false
 	for i := 0; i < 50; i++ {
 		if _, err := os.Stat(monitorSock); err == nil {
+			ready = true
 			break
 		}
 		sleepMillis(200)
+	}
+	if !ready {
+		return fmt.Errorf("QEMU no abrió el monitor: %s", qemuDiagnostic(qemuErr.String()))
 	}
 
 	go mapCtrlQ(qmpSock)
@@ -122,13 +130,23 @@ func cmdPreview(opts options, paths cli.ToolPaths) error {
 	fmt.Println("QEMU corriendo. Para salir: Ctrl+Q (o cerrá la ventana).")
 	fmt.Printf("Monitor QEMU en: %s\n", monitorSock)
 
-	_ = cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		// La ventana se cerró con Ctrl+Q o con la X: no es un fallo. Pero
+		// si QEMU murió solo (pflash inválido, SDL ausente), el mensaje
+		// tiene que decirlo.
+		if msg := qemuDiagnostic(qemuErr.String()); msg != "no dijo nada" {
+			return fmt.Errorf("QEMU terminó: %s", msg)
+		}
+	}
 	return nil
 }
 
 // checkRequirements verifica que estén las dependencias y los archivos.
 func checkRequirements(opts options) error {
-	for _, bin := range []string{"xorriso", "qemu-system-x86_64"} {
+	// socat es el que habla con el monitor de QEMU: sin él, el shot
+	// quema todo el timeout y falla con "no se pudo capturar el
+	// framebuffer", que no dice nada.
+	for _, bin := range []string{"xorriso", "qemu-system-x86_64", "socat"} {
 		if !cli.HaveCommand(bin) {
 			return fmt.Errorf("falta: %s", bin)
 		}
@@ -190,6 +208,19 @@ func buildISO(conf string, opts options) (string, error) {
 		return "", fmt.Errorf("xorriso falló: %s", strings.TrimSpace(string(out)))
 	}
 
+	// La receta oficial de Limine termina con `limine bios-install`: sin
+	// eso, la mitad BIOS del ISO híbrido queda sin instalar (el camino
+	// UEFI, que es el que usa el preview, funciona igual).
+	if bin := cli.CommandPath("limine"); bin != "" {
+		bios := exec.Command(bin, "bios-install", iso)
+		if out, err := bios.CombinedOutput(); err != nil {
+			// No es fatal: el preview arranca por UEFI.
+			cli.Warn("limine bios-install falló: %s", qemuDiagnostic(string(out)))
+		}
+	} else {
+		cli.Warn("no encontré limine: el ISO no sirve para arrancar por BIOS (por UEFI sí)")
+	}
+
 	return iso, nil
 }
 
@@ -216,8 +247,9 @@ func injectPreviewOptions(path, resolution string) error {
 			continue
 		}
 		if skipping {
-			// Todo lo que sigue al comentario hasta la primera línea con
-			// contenido es parte del bloque.
+			// Se saltean las líneas en blanco que quedaron del bloque
+			// anterior; la primera con contenido NO se descarta (puede ser
+			// una entrada del menú).
 			if strings.TrimSpace(line) == "" {
 				continue
 			}

@@ -29,6 +29,9 @@ import (
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const (
+	// defaultResolution es la resolución de la interfaz de Limine.
+	defaultResolution = "1920x1080"
+
 	// limineDir es donde el paquete de Limine deja sus archivos.
 	limineDir = "/usr/share/limine"
 
@@ -90,7 +93,7 @@ func Run(args []string, paths cli.ToolPaths) error {
 		command:    "preview",
 		wallpaper:  filepath.Join(paths.LoaderConfig(), "wallpaper", "wallpaper.png"),
 		conf:       filepath.Join(paths.LoaderConfig(), "limine.conf"),
-		resolution: "1920x1080",
+		resolution: defaultResolution,
 		timeout:    15,
 		applyWhat:  "all",
 		blur:       "0x0",

@@ -1,6 +1,7 @@
 package loader
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,14 @@ import (
 
 // ── shot ────────────────────────────────────────────────────────────────────
 
+// minMenuWait es lo mínimo que se espera antes de dar el menú por bueno.
+//
+// OVMF dibuja su logo en el primer segundo. Limine tarda unos pocos más
+// en tomar el control y pintar el menú. Sin esta espera mínima, un menú
+// cuya resolución coincide con la inicial del firmware se confunde con
+// el logo.
+const minMenuWait = 3
+
 // cmdShot captura el menú a un PNG.
 func cmdShot(opts options, paths cli.ToolPaths) error {
 	if err := checkRequirements(opts); err != nil {
@@ -19,24 +28,28 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 	}
 
 	conf := opts.conf
+	cleanup := func() {}
 	if opts.real {
-		out, err := cli.RunCombined("sudo", "cat", "/boot/limine.conf")
-		if err != nil {
-			return fmt.Errorf("no se pudo leer /boot/limine.conf (hace falta sudo)")
-		}
 		tmp, err := os.CreateTemp("", "boot-preview-loader-real.*.conf")
 		if err != nil {
 			return err
 		}
-		defer os.Remove(tmp.Name())
 		tmp.Close()
+		out, err := cli.RunCombined("sudo", "cat", "/boot/limine.conf")
+		if err != nil {
+			_ = os.Remove(tmp.Name())
+			return fmt.Errorf("no se pudo leer /boot/limine.conf (hace falta sudo): %s", out)
+		}
 		if err := os.WriteFile(tmp.Name(), []byte(out), 0o644); err != nil {
+			_ = os.Remove(tmp.Name())
 			return err
 		}
 		conf = tmp.Name()
+		cleanup = func() { _ = os.Remove(tmp.Name()) }
 	}
 
 	iso, err := buildISO(conf, opts)
+	cleanup()
 	if err != nil {
 		return err
 	}
@@ -67,7 +80,13 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 		}
 	}
 
+	// El stderr se guarda: si QEMU arranca y muere (pflash inválido, OVMF
+	// con tamaño raro), el error final decía "no se pudo capturar el
+	// framebuffer" y no la causa.
+	var qemuErr bytes.Buffer
+
 	cmd := exec.Command("qemu-system-x86_64", args...)
+	cmd.Stderr = &qemuErr
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("no se pudo arrancar QEMU: %w", err)
 	}
@@ -77,52 +96,72 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 	}()
 
 	// Espera a que el monitor responda.
+	ready := false
 	for i := 0; i < 50; i++ {
 		if _, err := os.Stat(monitorSock); err == nil {
+			ready = true
 			break
 		}
 		sleepMillis(200)
 	}
+	if !ready {
+		return fmt.Errorf("QEMU no abrió el monitor: %s", qemuDiagnostic(qemuErr.String()))
+	}
 
 	// En vez de esperar un tiempo fijo, se le pregunta al monitor si
-	// Limine ya dibujó el menú. Ahorra ~10 s de los 15 que costaba antes.
+	// Limine ya dibujó el menú.
 	//
-	// La señal NO es "hay algo pintado": el logo de TianoCore (OVMF) ya
-	// cuenta como pintado, y se terminaba capturando el logo en vez del
-	// menú. La señal buena es el CAMBIO DE RESOLUCIÓN: OVMF arranca en
-	// 1280x800 y Limine la cambia a la interface_resolution al tomar el
-	// control.
+	// La señal es la resolución: OVMF arranca en una (1280x800) y Limine
+	// la cambia a la interface_resolution al tomar el control. Se exige
+	// además la espera mínima, porque si la resolución pedida coincide
+	// con la del firmware, el primer frame (el logo de TianoCore) ya la
+	// cumpliría.
+	wantW, wantH, err := cli.ParseRes(opts.resolution)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Esperando a que arranque el menu (max %ds)...\n", opts.timeout)
 
 	raw := filepath.Join(workDir, "shot.ppm")
 	_ = os.Remove(raw)
 
-	deadline := nowSeconds() + int64(opts.timeout)
-	settled := false
+	startedAt := nowSeconds()
+	deadline := startedAt + int64(opts.timeout)
+	stable := 0
+	confirmed := false
 
 	for {
 		_ = screendump(monitorSock, raw)
 
-		if size, ok := imageSize(raw); ok && size == opts.resolution {
-			// Ya es la resolución del menú: falta que termine de pintar
-			// (Limine dibuja el fondo y después el texto).
-			if settled {
+		w, h := cli.ImageSize(raw)
+		matched := w == wantW && h == wantH
+		waited := nowSeconds()-startedAt >= minMenuWait
+
+		if matched && waited {
+			// Falta que termine de pintar (Limine dibuja el fondo y
+			// después el texto): se pide que se mantenga dos frames.
+			stable++
+			if stable >= 2 {
+				confirmed = true
 				break
 			}
-			settled = true
-			sleepMillis(500)
+			sleepMillis(400)
 			continue
 		}
+		stable = 0
 
 		if nowSeconds() >= deadline {
-			fmt.Println("  se agoto el tiempo de espera, capturando lo que haya")
 			break
 		}
 		sleepMillis(300)
 	}
 
 	if _, err := os.Stat(raw); err != nil {
-		return fmt.Errorf("no se pudo capturar el framebuffer")
+		return fmt.Errorf("no se pudo capturar el framebuffer: %s", qemuDiagnostic(qemuErr.String()))
+	}
+	if !confirmed {
+		cli.Warn("no se pudo confirmar que sea el menú (%dx%d no apareció); se capturó lo que había", wantW, wantH)
 	}
 
 	// Sin nombre: va a <repo>/previews/loader/ con timestamp.
@@ -151,6 +190,20 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 	return nil
 }
 
+// qemuDiagnostic arma un mensaje con lo que dijo QEMU.
+func qemuDiagnostic(stderr string) string {
+	msg := strings.TrimSpace(stderr)
+	if msg == "" {
+		return "no dijo nada"
+	}
+	// Solo la primera línea: alcanza para saber qué pasó y no llena la
+	// terminal con el trace completo.
+	if i := strings.IndexByte(msg, '\n'); i >= 0 {
+		msg = msg[:i]
+	}
+	return msg
+}
+
 // screendump le pide un volcado del framebuffer al monitor de QEMU.
 func screendump(monitorSock, dest string) error {
 	cmd := exec.Command("socat", "-", "UNIX-CONNECT:"+monitorSock)
@@ -159,6 +212,10 @@ func screendump(monitorSock, dest string) error {
 }
 
 // convertToPNG convierte el PPM a PNG.
+//
+// Si no hay con qué convertir, falla: copiar el PPM a un archivo con
+// nombre .png produce un archivo que ningún lector acepta, y el error
+// aparecía mucho después, en quien lo abría.
 func convertToPNG(src, dest string) error {
 	if cli.HaveCommand("vips") {
 		if _, err := cli.RunCombined("vips", "copy", src, dest); err == nil {
@@ -170,23 +227,5 @@ func convertToPNG(src, dest string) error {
 			return nil
 		}
 	}
-	return cli.CopyFile(src, dest)
-}
-
-// imageSize devuelve el tamaño de una imagen como "WxH".
-func imageSize(path string) (string, bool) {
-	if cli.HaveCommand("vipsheader") {
-		w, errW := cli.Run("vipsheader", "-f", "width", path)
-		h, errH := cli.Run("vipsheader", "-f", "height", path)
-		if errW == nil && errH == nil {
-			return w + "x" + h, true
-		}
-	}
-	if cli.HaveCommand("magick") {
-		out, err := cli.Run("magick", "identify", "-format", "%wx%h", path)
-		if err == nil {
-			return out, true
-		}
-	}
-	return "", false
+	return fmt.Errorf("no se pudo convertir el PPM a PNG: instalá vips o imagemagick")
 }

@@ -136,6 +136,16 @@ func prepareWithVips(opts Options, out string) error {
 		return nil
 	}
 
+	// La resolución se valida una vez, aca: los dos caminos (vips y
+	// magick) la usan, y magick la pasa cruda a la linea de comandos (con
+	// un valor invalido, fallaria con un error de magick, no con uno
+	// nuestro).
+	if opts.Res != "" {
+		if _, _, err := cli.ParseRes(opts.Res); err != nil {
+			return err
+		}
+	}
+
 	if opts.Res != "" {
 		tw, th, err := cli.ParseRes(opts.Res)
 		if err != nil {

@@ -242,3 +242,62 @@ interface_branding: b3low-z3r0
 		}
 	}
 }
+
+// TestRewriteWallpaperForRealMatcheaIndentado verifica que el wallpaper
+// se reescribe aunque la linea venga indentada o con espacios antes de
+// los dos puntos.
+//
+// El bug: se buscaba strings.HasPrefix(line, "wallpaper:"), asi que una
+// linea "  wallpaper : boot():/wallpaper.png" no matcheaba y el conf
+// real quedaba apuntando a un archivo que no existe en la ESP.
+func TestRewriteWallpaperForRealMatcheaIndentado(t *testing.T) {
+	block := []string{
+		"  wallpaper : boot():/wallpaper.png",
+		"wallpaper: boot():/wallpaper.png",
+		"  wallpaper_style: centered",
+		"interface_resolution: 1920x1080",
+	}
+
+	rewriteWallpaperForReal(block)
+
+	const want = "wallpaper: boot():/splash.png"
+	if block[0] != want {
+		t.Errorf("block[0] = %q, quiero %q", block[0], want)
+	}
+	if block[1] != want {
+		t.Errorf("block[1] = %q, quiero %q", block[1], want)
+	}
+	// wallpaper_style no se toca.
+	if block[2] != "  wallpaper_style: centered" {
+		t.Errorf("se toco wallpaper_style: %q", block[2])
+	}
+	if block[3] != "interface_resolution: 1920x1080" {
+		t.Errorf("se toco interface_resolution: %q", block[3])
+	}
+}
+
+// TestIsThemeOptionConIndentacion verifica que la deteccion de opciones
+// de theming no depende de la columna.
+func TestIsThemeOptionConIndentacion(t *testing.T) {
+	for _, line := range []string{
+		"wallpaper: boot():/x.png",
+		"  wallpaper: boot():/x.png",
+		"\twallpaper_style: centered",
+		"interface_resolution : 1280x720",
+	} {
+		if !isThemeOption(line) {
+			t.Errorf("isThemeOption(%q) dio false", line)
+		}
+	}
+
+	for _, line := range []string{
+		"timeout: 3",
+		"/+CachyOS",
+		"path: boot():/vmlinuz",
+		"# wallpaper: comentado",
+	} {
+		if isThemeOption(line) {
+			t.Errorf("isThemeOption(%q) dio true", line)
+		}
+	}
+}
