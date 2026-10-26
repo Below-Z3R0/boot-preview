@@ -67,6 +67,11 @@ Cuando agregás un comando:
 
 ## Las reglas del repo
 
+- **Un tag o un release publicado no se borra.** Es historia: si una
+  versión salió mal, se publica la siguiente y la anterior queda con una
+  nota que dice qué tenía. Borrarla rompe el historial, hace
+  irreproducible ese estado y deja sin binario a quien ya la bajó. Una
+  versión nueva nunca "reemplaza" a la anterior.
 - **`gofmt` siempre**: `gofmt -w .` antes de commitear.
 - **`go vet` limpio**: `go vet ./...`.
 - **Los comentarios explican el porqué**, no el qué. Si el código se
