@@ -133,6 +133,13 @@ func writeTarGz(dest, root string) error {
 		header.ModTime = fixedTime()
 		header.AccessTime = fixedTime()
 		header.ChangeTime = fixedTime()
+		// El uid/gid del que armó el paquete no le sirven a quien lo
+		// descarga: si el paquete lo hace otro usuario, los archivos
+		// quedarían de un uid ajeno y no los podría instalar.
+		header.Uid = 0
+		header.Gid = 0
+		header.Uname = "root"
+		header.Gname = "root"
 		if info.IsDir() {
 			header.Name += "/"
 		}
