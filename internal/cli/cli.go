@@ -159,15 +159,16 @@ func (p ToolPaths) AnimationConfig() string { return filepath.Join(p.Config, "an
 //
 // Es el repo si hay uno; si el tool se instaló desde el bundle (sin repo)
 // es ~/.local/share/boot-preview.
+//
+// OJO: se usa ~/.local/share y NO $XDG_DATA_HOME, para que quede en el
+// mismo lugar que el binario y los assets (~/.local/bin y
+// ~/.local/lib). Con XDG_DATA_HOME apuntando a otro lado, las capturas
+// quedarian separadas del resto del tool.
 func (p ToolPaths) PreviewsRoot() string {
 	if p.Repo != "" {
 		return p.Repo
 	}
-	dataHome := os.Getenv("XDG_DATA_HOME")
-	if dataHome == "" {
-		dataHome = filepath.Join(Home(), ".local", "share")
-	}
-	return filepath.Join(dataHome, "boot-preview")
+	return filepath.Join(Home(), ".local", "share", "boot-preview")
 }
 
 // LoaderPreviews es la carpeta de capturas del menú de Limine.

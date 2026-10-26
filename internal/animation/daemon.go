@@ -207,7 +207,7 @@ func startPlymouthX11(theme string, paths cli.ToolPaths) (*plymouthProcess, erro
 	}
 
 	_, _ = cli.RunCombined("sudo", "plymouth", "--quit")
-	sleep(time.Second)
+	time.Sleep(time.Second)
 
 	// El archivo del PID: el script lo escribe al arrancar.
 	pidFile := pidFilePath()
@@ -259,7 +259,7 @@ func (p *plymouthProcess) start(detach bool) error {
 	// NO se cierra el descriptor: el daemon lo tiene abierto y Plymouth
 	// se apaga en cuanto su stdout se cierra.
 
-	sleep(3 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	if !p.alive() {
 		p.cleanup()

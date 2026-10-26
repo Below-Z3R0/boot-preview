@@ -36,7 +36,6 @@ func buildScript(frames []string, fps int) string {
 	b.WriteString("sprite.SetOpacity(1);\n")
 	b.WriteString("\n")
 	b.WriteString("frame = 0;\n")
-	b.WriteString("tick = 0;\n")
 	b.WriteString("\n")
 	b.WriteString("fun Refresh ()\n")
 	b.WriteString("{\n")

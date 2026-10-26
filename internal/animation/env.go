@@ -38,8 +38,17 @@ func shellQuote(s string) string {
 func replaceLine(content, key, value string) string {
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
+		// La clave exacta, con los espacios que quiera alrededor de los
+		// dos puntos: Limine acepta "clave: valor" y "clave : valor".
+		//
 		// Solo la clave exacta: "ImageDir" no debe pisar "ImageDirBackup".
-		if line != key && !strings.HasPrefix(line, key+"=") {
+		trimmed := strings.TrimSpace(line)
+		// La clave exacta: ni "ImageDirBackup" ni "ImageDirExtra".
+		name, _, ok := strings.Cut(trimmed, ":")
+		if !ok {
+			name, _, ok = strings.Cut(trimmed, "=")
+		}
+		if !ok || strings.TrimSpace(name) != key {
 			continue
 		}
 		lines[i] = key + "=" + value

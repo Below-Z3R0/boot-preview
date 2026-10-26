@@ -68,6 +68,7 @@ boot-preview/
 │   ├── RENDIMIENTO.md        # las mediciones y la comparativa Go vs bash
 │   └── PLYMOUTH.md           # el splash de arranque (que sí es Plymouth)
 ├── previews/                 # las capturas
+├── CONTRIBUTING.md           # cómo compilar, testear y agregar comandos
 ├── go.mod
 └── LICENSE
 ```

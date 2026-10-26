@@ -88,7 +88,7 @@ func cmdShot(args []string, paths cli.ToolPaths) error {
 
 	// 8 muestras cada 500 ms: 4 s de animación.
 	for i := 1; i <= 8; i++ {
-		sleep(500 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		png := filepath.Join(tmpDir, fmt.Sprintf("shot-%d.png", i))
 		if err := captureWindow(wid, png); err != nil {
 			continue
@@ -158,7 +158,7 @@ func waitForPlymouthWindow() string {
 		if wid := findPlymouthWindow(); wid != "" {
 			return wid
 		}
-		sleep(250 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 	}
 	return ""
 }

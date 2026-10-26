@@ -8,11 +8,6 @@ import (
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
 
-// sleep espera un rato.
-func sleep(d time.Duration) {
-	time.Sleep(d)
-}
-
 // timeStamp devuelve el timestamp para los nombres de archivo.
 func timeStamp() string {
 	return time.Now().Format("20060102-150405")

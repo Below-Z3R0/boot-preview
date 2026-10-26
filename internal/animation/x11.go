@@ -93,7 +93,7 @@ func cmdX11(args []string, paths cli.ToolPaths) error {
 			if !proc.alive() {
 				break
 			}
-			sleep(time.Second)
+			time.Sleep(time.Second)
 			updateSplash("Iniciando " + strconv.Itoa(i+1))
 		}
 		return nil
