@@ -137,7 +137,10 @@ func prepareWithVips(opts Options, out string) error {
 	}
 
 	if opts.Res != "" {
-		tw, th := parseRes(opts.Res)
+		tw, th, err := cli.ParseRes(opts.Res)
+		if err != nil {
+			return err
+		}
 		sw, sh := cli.ImageSize(opts.Src)
 		if sw == 0 || sh == 0 {
 			return fmt.Errorf("no se pudo leer el tamaño de %s", opts.Src)
@@ -270,13 +273,6 @@ func haveCommand(name string) bool {
 //
 // Si no se puede, devuelve 0,0: el wallpaper no se genera y el comando
 // avisa, en vez de fallar con un error de sintaxis.
-func parseRes(res string) (int, int) {
-	w, h, err := cli.ParseRes(res)
-	if err != nil {
-		return 0, 0
-	}
-	return w, h
-}
 
 // imageSize devuelve el tamaño de una imagen, en píxeles.
 
