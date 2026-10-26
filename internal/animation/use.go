@@ -14,6 +14,12 @@ import (
 
 // cmdPreview cambia el tema SOLO del preview.
 func cmdPreview(args []string, paths cli.ToolPaths) error {
+	// "--help" no es un nombre de tema: mostraba "No existe el tema:
+	// --help" y, desde el fix de los errores, salía con código 1.
+	if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
+		usage()
+		return nil
+	}
 	if len(args) == 0 || args[0] == "" {
 		cli.Say("Falta el nombre del tema")
 		_ = cmdSources(paths)
@@ -41,6 +47,10 @@ func cmdPreview(args []string, paths cli.ToolPaths) error {
 
 // cmdUse aplica el tema al SISTEMA (regenera el initramfs).
 func cmdUse(args []string, paths cli.ToolPaths) error {
+	if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
+		usage()
+		return nil
+	}
 	if len(args) == 0 || args[0] == "" {
 		cli.Say("Falta el nombre del tema")
 		_ = cmdSources(paths)
