@@ -118,7 +118,7 @@ func cmdShot(args []string, paths cli.ToolPaths) error {
 			dir = paths.AnimationConfig()
 		}
 		_ = os.MkdirAll(dir, 0o755)
-		out = filepath.Join(dir, "animation-"+timeStamp()+".png")
+		out = filepath.Join(dir, "animation-"+cli.Timestamp()+".png")
 	} else if !filepath.IsAbs(out) && paths.Repo != "" {
 		dir := paths.AnimationPreviews()
 		_ = os.MkdirAll(dir, 0o755)

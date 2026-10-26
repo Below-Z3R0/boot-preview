@@ -83,7 +83,7 @@ func cmdWallpapers(opts options, paths cli.ToolPaths) error {
 // magick fallan con "Bus error" (ver docs/RENDIMIENTO.md): se escribe a un
 // temporal en la misma carpeta y se renombra.
 func prepareSafe(src, dest string, opts wallpaper.Options) error {
-	if !samePath(src, dest) {
+	if !cli.SamePath(src, dest) {
 		return wallpaper.Prepare(opts)
 	}
 
@@ -100,14 +100,4 @@ func prepareSafe(src, dest string, opts wallpaper.Options) error {
 		return err
 	}
 	return os.Rename(tmpName, dest)
-}
-
-// samePath dice si los dos paths son el mismo archivo.
-func samePath(a, b string) bool {
-	infoA, errA := os.Stat(a)
-	infoB, errB := os.Stat(b)
-	if errA == nil && errB == nil {
-		return os.SameFile(infoA, infoB)
-	}
-	return filepath.Clean(a) == filepath.Clean(b)
 }

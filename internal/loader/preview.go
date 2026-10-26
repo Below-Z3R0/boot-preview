@@ -6,16 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
-
-// injectComment es el comentario que marca el bloque que inyecta
-// boot-preview. Se borra antes de reinyectar, para que el apply sea
-// idempotente.
-const injectComment = "# ── inyectado por boot-preview loader ──"
 
 // ── El preview ──────────────────────────────────────────────────────────────
 
@@ -118,7 +111,7 @@ func cmdPreview(opts options, paths cli.ToolPaths) error {
 			ready = true
 			break
 		}
-		sleepMillis(200)
+		cli.SleepMillis(200)
 	}
 	if !ready {
 		return fmt.Errorf("QEMU no abrió el monitor: %s", qemuDiagnostic(qemuErr.String()))
@@ -161,144 +154,4 @@ func checkRequirements(opts options) error {
 		cli.Warn("sin /dev/kvm, la VM va a ir por emulación (lenta)")
 	}
 	return nil
-}
-
-// buildISO arma el árbol del ISO y lo construye.
-func buildISO(conf string, opts options) (string, error) {
-	if err := os.RemoveAll(workDir); err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(filepath.Join(workDir, "EFI", "BOOT"), 0o755); err != nil {
-		return "", err
-	}
-
-	for _, file := range []string{"limine-uefi-cd.bin", "limine-bios-cd.bin", "limine-bios.sys"} {
-		if err := cli.CopyFile(filepath.Join(limineDir, file), filepath.Join(workDir, file)); err != nil {
-			return "", fmt.Errorf("falta %s en %s", file, limineDir)
-		}
-	}
-	if err := cli.CopyFile(filepath.Join(limineDir, "BOOTX64.EFI"), filepath.Join(workDir, "EFI", "BOOT", "BOOTX64.EFI")); err != nil {
-		return "", fmt.Errorf("falta BOOTX64.EFI en %s", limineDir)
-	}
-
-	// La config: se copia tal cual y se le inyecta el wallpaper y la
-	// resolución.
-	target := filepath.Join(workDir, "limine.conf")
-	if err := cli.CopyFile(conf, target); err != nil {
-		return "", err
-	}
-	if err := injectPreviewOptions(target, opts.resolution); err != nil {
-		return "", err
-	}
-
-	if err := cli.CopyFile(opts.wallpaper, filepath.Join(workDir, "wallpaper.png")); err != nil {
-		return "", err
-	}
-
-	// El ISO híbrido (UEFI + BIOS).
-	iso := filepath.Join(workDir, "boot-preview-loader.iso")
-	xorriso := exec.Command("xorriso", "-as", "mkisofs", "-R", "-r", "-J",
-		"-b", "limine-bios-cd.bin",
-		"-no-emul-boot", "-boot-load-size", "4", "-boot-info-table", "-hfsplus",
-		"-apm-block-size", "2048", "--efi-boot", "limine-uefi-cd.bin",
-		"-efi-boot-part", "--efi-boot-image", "--protective-msdos-label",
-		".", "-o", iso)
-	xorriso.Dir = workDir
-	if out, err := xorriso.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("xorriso falló: %s", strings.TrimSpace(string(out)))
-	}
-
-	// La receta oficial de Limine termina con `limine bios-install`: sin
-	// eso, la mitad BIOS del ISO híbrido queda sin instalar (el camino
-	// UEFI, que es el que usa el preview, funciona igual).
-	if bin := cli.CommandPath("limine"); bin != "" {
-		bios := exec.Command(bin, "bios-install", iso)
-		if out, err := bios.CombinedOutput(); err != nil {
-			// No es fatal: el preview arranca por UEFI.
-			cli.Warn("limine bios-install falló: %s", qemuDiagnostic(string(out)))
-		}
-	} else {
-		cli.Warn("no encontré limine: el ISO no sirve para arrancar por BIOS (por UEFI sí)")
-	}
-
-	return iso, nil
-}
-
-// injectPreviewOptions mete las opciones del preview en el conf.
-//
-// OJO: en Limine las opciones GLOBALES tienen que ir antes de la primera
-// entrada de menú (una línea que empieza con "/"). Si se inyectan al
-// final, Limine las trata como opciones de esa entrada y las ignora.
-func injectPreviewOptions(path, resolution string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
-	// Se borra el bloque inyectado en una corrida anterior (si lo hay),
-	// para que la inyección sea idempotente: aplicarla dos veces tiene
-	// que dejar el mismo archivo.
-	lines := strings.Split(string(data), "\n")
-	var kept []string
-	skipping := false
-	for _, line := range lines {
-		if strings.TrimSpace(line) == injectComment {
-			skipping = true
-			continue
-		}
-		if skipping {
-			// Se saltean las líneas en blanco que quedaron del bloque
-			// anterior; la primera con contenido NO se descarta (puede ser
-			// una entrada del menú).
-			if strings.TrimSpace(line) == "" {
-				continue
-			}
-			skipping = false
-		}
-		kept = append(kept, line)
-	}
-	text := strings.Join(kept, "\n")
-
-	// Se borran las opciones de theming previas para que la config
-	// inyectada gane.
-	text = optionLineRe("wallpaper|wallpaper_style|interface_resolution").ReplaceAllString(text, "")
-	// El timeout se fuerza a "no": si no, Limine autobootea la entrada
-	// default (que en la config real apunta a un kernel con hash que no
-	// está en el ISO) y se va de la pantalla antes de que puedas mirarla.
-	text = optionLineRe("timeout").ReplaceAllString(text, "")
-
-	inject := fmt.Sprintf(`%s
-timeout: no
-wallpaper: boot():/wallpaper.png
-wallpaper_style: centered
-interface_resolution: %s
-`, injectComment, resolution)
-
-	lines = strings.Split(text, "\n")
-	insertAt := len(lines)
-	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "/") {
-			insertAt = i
-			break
-		}
-	}
-
-	var out []string
-	out = append(out, lines[:insertAt]...)
-	out = append(out, strings.TrimRight(inject, "\n"))
-	out = append(out, lines[insertAt:]...)
-
-	result := strings.Join(out, "\n")
-	// Las opciones borradas dejan lineas vacias: se colapsan para que el
-	// archivo no crezca con cada inyeccion.
-	for strings.Contains(result, "\n\n\n") {
-		result = strings.ReplaceAll(result, "\n\n\n", "\n\n")
-	}
-
-	return os.WriteFile(path, []byte(result+"\n"), 0o644)
-}
-
-// optionLineRe matchea una línea de opción completa.
-func optionLineRe(names string) *regexp.Regexp {
-	return regexp.MustCompile(`(?m)^\s*(` + names + `)\s*:.*$\n?`)
 }

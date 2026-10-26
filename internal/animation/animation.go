@@ -21,7 +21,8 @@
 //	use.go             aplicar un tema al sistema
 //	steam_source.go    los videos de startup de Steam
 //	steam_convert.go   convertir un video en tema
-//	convert_video.go   la conversión en sí
+//	convert_video.go   la conversión: extraer y armar el tema
+//	filter.go         el filtro de ffmpeg (crop, escala, bandas negras)
 //	detect.go          las propiedades del video (fps, resolución)
 //	script.go          el script de Plymouth que reproduce los frames
 //	name.go            el nombre del tema a partir del video

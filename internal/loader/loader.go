@@ -8,12 +8,15 @@
 // El paquete se divide por comando:
 //
 //	loader.go    el dispatcher: parsea los argumentos y elige comando
+//	preview.go   abrir la VM y los chequeos de entorno
+//	iso.go       armar el ISO híbrido con la config
+//	inject.go    inyectar las opciones en el conf del ISO
+//	shot.go      capturar la pantalla de la VM
 //	add.go       poner una imagen como wallpaper del preview
-//	apply.go     aplicar el tema al Limine real (/boot/limine.conf)
-//	preview.go   el preview: el ISO y la VM
-//	shot.go      la captura de la pantalla de la VM
 //	wallpaper.go generar las dos versiones del wallpaper
-//	commands.go  los helpers del paquete
+//	apply.go     aplicar el tema al Limine real
+//	conf.go      parsear el limine.conf real
+//	commands.go  helpers de QEMU y archivos
 //	usage.go     la ayuda
 package loader
 

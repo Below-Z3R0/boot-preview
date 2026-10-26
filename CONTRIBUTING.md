@@ -41,7 +41,24 @@ internal/wallpaper/  blur + velo + escalado
 ```
 
 Cada módulo está dividido **por comando**: un archivo por comando, con
-el dispatcher aparte. Cuando agregás un comando:
+el dispatcher aparte.
+
+## Los límites del código
+
+- **Un archivo, un tema.** Si un archivo mezcla dos (parsear y ejecutar,
+  filtrar y convertir), se parte: `conf.go` / `iso.go` / `inject.go` en
+  `loader`, `filter.go` en `animation`, `config.go` en `steam`.
+- **Si pasa de ~230 líneas, partilo.** El más grande hoy tiene 236 y el
+  promedio ronda las 130.
+- **Los helpers compartidos no se duplican**: van a `internal/cli`
+  (`SamePath`, `HaveCommand`, `Timestamp`, `DirSize`, `ParseRes`...). Si
+  dos paquetes necesitan lo mismo, es de `cli`.
+- **Nada de código muerto.** Antes de agregar una función, buscá si ya
+  existe; si algo deja de usarse, se borra en el mismo commit.
+- **El orden de lectura es el del doc del paquete**: el dispatcher
+  primero, después el comando, después sus helpers.
+
+Cuando agregás un comando:
 
 1. su archivo en el módulo (`<comando>.go`)
 2. el caso en el `Run()` del dispatcher

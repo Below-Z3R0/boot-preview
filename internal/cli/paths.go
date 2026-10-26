@@ -1,67 +1,11 @@
-// Package cli tiene lo que todos los comandos comparten.
-//
-// Son tres cosas:
-//
-//   - la salida: los colores y los mensajes (Say, Step, Ok, Warn)
-//   - las rutas: dónde está la config, el binario y las capturas (ToolPaths)
-//   - el sistema: correr comandos, copiar archivos, medir tamaños
-//
-// Los paths son de boot-preview, no genéricos: si el tool se renombra o
-// cambia de layout, se cambia acá y en un solo lugar.
 package cli
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
-
-// ── Salida ──────────────────────────────────────────────────────────────────
-//
-// La paleta es Rosé Pine, la misma que usaba la versión en bash:
-//
-//	▸ step    Rosewater  235;194;186
-//	✓ ok      Sapphire   125;207;216
-//	! warn    Red        246;153;150
-//	[algo]    Green      166;227;161  (solo en sources)
-const (
-	colorReset    = "\033[0m"
-	colorBold     = "\033[1m"
-	colorRose     = "\033[38;2;235;194;186m"
-	colorSapphire = "\033[38;2;125;207;216m"
-	colorRed      = "\033[38;2;246;153;150m"
-	colorGreen    = "\033[38;2;166;227;161m"
-)
-
-// Say imprime una línea indentada.
-func Say(format string, args ...any) {
-	fmt.Printf("  %s\n", fmt.Sprintf(format, args...))
-}
-
-// Step imprime un encabezado de sección.
-func Step(format string, args ...any) {
-	fmt.Printf("\n%s▸%s %s%s%s\n",
-		colorRose, colorReset,
-		colorBold, fmt.Sprintf(format, args...), colorReset)
-}
-
-// Ok imprime un éxito.
-func Ok(format string, args ...any) {
-	fmt.Printf("  %s✓%s %s\n", colorSapphire, colorReset, fmt.Sprintf(format, args...))
-}
-
-// Warn imprime un aviso.
-func Warn(format string, args ...any) {
-	fmt.Printf("  %s! %s%s\n", colorRed, fmt.Sprintf(format, args...), colorReset)
-}
-
-// Green colorea un texto con el verde de la paleta (para las etiquetas de
-// [sistema] y [preview]).
-func Green(s string) string {
-	return colorGreen + s + colorReset
-}
 
 // ── Rutas ───────────────────────────────────────────────────────────────────
 
@@ -189,72 +133,4 @@ func (p ToolPaths) LoaderPreviews() string {
 // AnimationPreviews es la carpeta de capturas del splash de Plymouth.
 func (p ToolPaths) AnimationPreviews() string {
 	return filepath.Join(p.PreviewsRoot(), "previews", "animation")
-}
-
-// ── Sistema ─────────────────────────────────────────────────────────────────
-
-// HaveCommand dice si un binario está en el PATH.
-func HaveCommand(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
-}
-
-// CommandPath devuelve la ruta de un binario, o "" si no está.
-func CommandPath(name string) string {
-	path, err := exec.LookPath(name)
-	if err != nil {
-		return ""
-	}
-	return path
-}
-
-// Run ejecuta un comando y devuelve su stdout. Si falla, devuelve el error.
-func Run(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	out, err := cmd.Output()
-	return strings.TrimRight(string(out), "\n"), err
-}
-
-// RunCombined ejecuta un comando con stderr mezclado.
-func RunCombined(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	out, err := cmd.CombinedOutput()
-	return strings.TrimRight(string(out), "\n"), err
-}
-
-// RunIn ejecuta un comando en un directorio y devuelve su salida.
-//
-// RunCombined corre en el cwd del proceso: `go build ./cmd/...` desde
-// otro lado falla con "no se encontró el módulo".
-func RunIn(dir, name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	return strings.TrimRight(string(out), "\n"), err
-}
-
-// PackageVersion devuelve la versión instalada de un paquete de pacman, o ""
-// si no está instalado.
-func PackageVersion(name string) string {
-	out, err := Run("pacman", "-Q", name)
-	if err != nil {
-		return ""
-	}
-	fields := strings.Fields(out)
-	if len(fields) < 2 {
-		return ""
-	}
-	return fields[len(fields)-1]
-}
-
-// IsRoot dice si el proceso corre como root.
-func IsRoot() bool { return os.Geteuid() == 0 }
-
-// SudoUser devuelve el usuario que lanzó sudo, o "" si no hay sudo.
-func SudoUser() string {
-	user := os.Getenv("SUDO_USER")
-	if user == "root" {
-		return ""
-	}
-	return user
 }

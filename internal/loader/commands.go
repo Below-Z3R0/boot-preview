@@ -19,7 +19,7 @@ func mapCtrlQ(qmpSock string) {
 		if _, err := os.Stat(qmpSock); err == nil {
 			break
 		}
-		sleepMillis(100)
+		cli.SleepMillis(100)
 	}
 
 	// El handshake de QMP va por el mismo socket.
@@ -35,21 +35,6 @@ func mapCtrlQ(qmpSock string) {
 	quit := exec.Command("socat", "-", "UNIX-CONNECT:"+qmpSock)
 	quit.Stdin = strings.NewReader(`{"execute":"quit"}` + "\n")
 	_ = quit.Run()
-}
-
-// sleepMillis espera un rato.
-func sleepMillis(ms int) {
-	time.Sleep(time.Duration(ms) * time.Millisecond)
-}
-
-// nowSeconds devuelve el epoch en segundos.
-func nowSeconds() int64 {
-	return time.Now().Unix()
-}
-
-// timestamp devuelve el timestamp para los nombres de archivo.
-func timestamp() string {
-	return time.Now().Format("20060102-150405")
 }
 
 // writeFile escribe un archivo, con sudo si hace falta.

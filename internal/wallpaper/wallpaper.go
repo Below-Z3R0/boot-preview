@@ -50,11 +50,11 @@ func Prepare(opts Options) error {
 		opts.Overlay = "#000000"
 	}
 
-	haveVips := haveCommand("vips")
-	if !haveVips && !haveCommand("magick") {
+	haveVips := cli.HaveCommand("vips")
+	if !haveVips && !cli.HaveCommand("magick") {
 		return fmt.Errorf("falta: imagemagick (o vips)")
 	}
-	if opts.Format == "qoi" && !haveCommand("magick") {
+	if opts.Format == "qoi" && !cli.HaveCommand("magick") {
 		return fmt.Errorf("falta: imagemagick (para el formato QOI)")
 	}
 
@@ -264,9 +264,4 @@ func run(name string, args ...string) error {
 		return fmt.Errorf("%s", msg)
 	}
 	return nil
-}
-
-func haveCommand(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
 }

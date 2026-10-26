@@ -24,21 +24,21 @@ func TestSameFileDetectaElMismoArchivo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !sameFile(path, path) {
-		t.Error("sameFile() dio false para el mismo path")
+	if !cli.SamePath(path, path) {
+		t.Error("cli.SamePath() dio false para el mismo path")
 	}
 
 	otro := filepath.Join(dir, "otro")
 	if err := os.WriteFile(otro, []byte("otro"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if sameFile(path, otro) {
-		t.Error("sameFile() dio true para dos archivos distintos")
+	if cli.SamePath(path, otro) {
+		t.Error("cli.SamePath() dio true para dos archivos distintos")
 	}
 
 	// Un path que no existe.
-	if sameFile(path, filepath.Join(dir, "no-existe")) {
-		t.Error("sameFile() dio true para un archivo inexistente")
+	if cli.SamePath(path, filepath.Join(dir, "no-existe")) {
+		t.Error("cli.SamePath() dio true para un archivo inexistente")
 	}
 }
 

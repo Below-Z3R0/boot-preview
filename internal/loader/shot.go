@@ -102,7 +102,7 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 			ready = true
 			break
 		}
-		sleepMillis(200)
+		cli.SleepMillis(200)
 	}
 	if !ready {
 		return fmt.Errorf("QEMU no abrió el monitor: %s", qemuDiagnostic(qemuErr.String()))
@@ -126,7 +126,7 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 	raw := filepath.Join(workDir, "shot.ppm")
 	_ = os.Remove(raw)
 
-	startedAt := nowSeconds()
+	startedAt := cli.NowSeconds()
 	deadline := startedAt + int64(opts.timeout)
 	stable := 0
 	confirmed := false
@@ -136,7 +136,7 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 
 		w, h := cli.ImageSize(raw)
 		matched := w == wantW && h == wantH
-		waited := nowSeconds()-startedAt >= minMenuWait
+		waited := cli.NowSeconds()-startedAt >= minMenuWait
 
 		if matched && waited {
 			// Falta que termine de pintar (Limine dibuja el fondo y
@@ -146,15 +146,15 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 				confirmed = true
 				break
 			}
-			sleepMillis(400)
+			cli.SleepMillis(400)
 			continue
 		}
 		stable = 0
 
-		if nowSeconds() >= deadline {
+		if cli.NowSeconds() >= deadline {
 			break
 		}
-		sleepMillis(300)
+		cli.SleepMillis(300)
 	}
 
 	if _, err := os.Stat(raw); err != nil {
@@ -172,7 +172,7 @@ func cmdShot(opts options, paths cli.ToolPaths) error {
 			dir = workDir
 		}
 		_ = os.MkdirAll(dir, 0o755)
-		out = filepath.Join(dir, "loader-"+timestamp()+".png")
+		out = filepath.Join(dir, "loader-"+cli.Timestamp()+".png")
 	} else if !filepath.IsAbs(out) && paths.Repo != "" {
 		dir := paths.LoaderPreviews()
 		_ = os.MkdirAll(dir, 0o755)

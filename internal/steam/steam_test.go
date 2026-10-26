@@ -56,11 +56,11 @@ func TestParseStartupMoviesBadJSON(t *testing.T) {
 }
 
 func TestSamePath(t *testing.T) {
-	if !samePath("/usr/share/plymouth", "/usr/share/plymouth/") {
-		t.Error("samePath() con barra final deberia dar true")
+	if !cli.SamePath("/usr/share/plymouth", "/usr/share/plymouth/") {
+		t.Error("cli.SamePath() con barra final deberia dar true")
 	}
-	if samePath("/usr/share/plymouth", "/usr/share/otro") {
-		t.Error("samePath() con rutas distintas deberia dar false")
+	if cli.SamePath("/usr/share/plymouth", "/usr/share/otro") {
+		t.Error("cli.SamePath() con rutas distintas deberia dar false")
 	}
 }
 

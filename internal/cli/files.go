@@ -213,3 +213,24 @@ func ReplaceFile(src, dest string) error {
 	}
 	return os.Rename(tmpName, dest)
 }
+
+// SamePath dice si dos rutas son el mismo archivo.
+//
+// Primero por inodo (os.SameFile): resuelve los symlinks de una. Si
+// alguna no existe, compara las rutas reales.
+func SamePath(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if infoA, errA := os.Stat(a); errA == nil {
+		if infoB, errB := os.Stat(b); errB == nil {
+			return os.SameFile(infoA, infoB)
+		}
+	}
+	realA, errA := filepath.EvalSymlinks(a)
+	realB, errB := filepath.EvalSymlinks(b)
+	if errA == nil && errB == nil {
+		return realA == realB
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
+}
