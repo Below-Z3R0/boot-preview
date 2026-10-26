@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
@@ -95,7 +96,7 @@ func daemonCall(args ...string) error {
 
 // ping dice si el daemon está vivo.
 func daemonPing() error {
-	out, err := cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
+	out, err := cli.RunTimeout(2*time.Second, "sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
 	if err != nil {
 		cli.Warn("El daemon de Plymouth no está corriendo")
 		return fmt.Errorf("el daemon de Plymouth no responde")
@@ -110,11 +111,15 @@ func daemonStatus() error {
 	cli.Step("Estado de Plymouth")
 
 	// El daemon responde al ping con 0 si está vivo.
-	if out, err := cli.RunCombined("sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping"); err != nil {
+	//
+	// Un daemon que no corre no es un fallo del comando: es el estado
+	// que se fue a consultar. Sale 0 para que un script pueda preguntar
+	// sin que `set -e` lo tome como error.
+	if out, err := cli.RunTimeout(2*time.Second, "sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping"); err != nil {
 		cli.Warn("El daemon de Plymouth no está corriendo")
 		cli.Say("Para levantarlo con el tema del preview:")
 		cli.Say("    boot-preview animation")
-		return fmt.Errorf("el daemon de Plymouth no está corriendo")
+		return nil
 	} else {
 		_ = out
 		cli.Ok("daemon corriendo")

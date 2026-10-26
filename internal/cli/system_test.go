@@ -30,3 +30,16 @@ func TestRunTimeoutDevuelveSalida(t *testing.T) {
 		t.Fatalf("salida = %q, quiero %q", out, "hola")
 	}
 }
+
+// Un comando puede contestar solo con el código de salida (plymouth
+// --ping no imprime nada). Eso es éxito, no un fallo: el error es la
+// señal, no la ausencia de texto.
+func TestRunTimeoutExitCeroSinSalida(t *testing.T) {
+	out, err := RunTimeout(2*time.Second, "true")
+	if err != nil {
+		t.Fatalf("exit 0 sin salida dio error: %v", err)
+	}
+	if out != "" {
+		t.Fatalf("salida = %q, quiero vacía", out)
+	}
+}

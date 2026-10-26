@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Below-Z3R0/boot-preview/internal/cli"
 )
@@ -129,12 +130,7 @@ func notify() error {
 
 	// Los targets que nos interesan.
 	hit := map[string]bool{}
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		target := strings.TrimSpace(scanner.Text())
-		if target == "" {
-			continue
-		}
+	for _, target := range readTargets(1500 * time.Millisecond) {
 		for _, watched := range watchedPackages {
 			if target == watched {
 				hit[target] = true
@@ -154,6 +150,34 @@ func notify() error {
 	fmt.Printf("\n\033[38;2;235;194;186m▸\033[0m \033[1mboot-preview\033[0m: se actualizó %s\n", strings.Join(names, ", "))
 	fmt.Printf("  \033[38;2;125;207;216m→\033[0m Corré \033[1mboot-preview verify\033[0m para revalidar los previews.\n\n")
 	return nil
+}
+
+// readTargets lee los paquetes que pacman manda por stdin.
+//
+// En una terminal no hay nada que leer: el hook lo corre pacman, no una
+// persona, y esperar el EOF ahí cuelga el comando para siempre. Por si
+// el que llama no cierra stdin, se lee con deadline y se sigue.
+func readTargets(timeout time.Duration) []string {
+	if cli.IsTTY() {
+		return nil
+	}
+	lines := make(chan []string, 1)
+	go func() {
+		var out []string
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			if line := strings.TrimSpace(scanner.Text()); line != "" {
+				out = append(out, line)
+			}
+		}
+		lines <- out
+	}()
+	select {
+	case out := <-lines:
+		return out
+	case <-time.After(timeout):
+		return nil
+	}
 }
 
 // configHome devuelve la carpeta de config del usuario.

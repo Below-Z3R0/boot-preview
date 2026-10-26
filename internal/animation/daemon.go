@@ -29,8 +29,12 @@ func pidFilePath() string {
 // la ventana abierta), el shot reutiliza esa ventana en vez de levantar
 // un daemon nuevo. Si no, levanta el suyo.
 func daemonRunning() bool {
-	out, err := cli.RunTimeout(2*time.Second, "sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
-	return err == nil && strings.TrimSpace(out) != ""
+	// El ping contesta con el código de salida y NO imprime nada: exigir
+	// salida acá daba false con el daemon vivo, y entonces `reload`,
+	// `update`, `pause` y compañía decían "no está corriendo" mientras
+	// `status` (que solo mira el error) decía que sí.
+	_, err := cli.RunTimeout(2*time.Second, "sudo", "--preserve-env=DISPLAY,XAUTHORITY", "plymouth", "--ping")
+	return err == nil
 }
 
 // StopPlymouth cierra el daemon de Plymouth y limpia lo que dejó.

@@ -10,6 +10,15 @@ import (
 
 // ── Sistema ─────────────────────────────────────────────────────────────────
 
+// IsTTY dice si stdin es una terminal.
+//
+// Un comando que lee de stdin (el hook de pacman) no puede esperar un
+// EOF que en una terminal nunca llega.
+func IsTTY() bool {
+	fi, err := os.Stdin.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
 // HaveCommand dice si un binario está en el PATH.
 func HaveCommand(name string) bool {
 	_, err := exec.LookPath(name)
