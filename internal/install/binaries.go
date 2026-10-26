@@ -74,11 +74,52 @@ func installBinary(paths cli.ToolPaths, name, dest string) error {
 	if err != nil {
 		return err
 	}
+
+	// Si el ejecutable actual ES el destino, copiarlo da "text file busy":
+	// el kernel no deja escribir un binario que se está corriendo.
+	//
+	// Se copia a un temporal y se mueve: `mv` dentro del mismo sistema de
+	// archivos es un rename, que sí funciona con el binario en uso.
+	if sameFile(self, dest) {
+		tmp, err := os.CreateTemp(filepath.Dir(dest), ".boot-preview-install.*")
+		if err != nil {
+			return err
+		}
+		tmpName := tmp.Name()
+		tmp.Close()
+		defer os.Remove(tmpName)
+
+		data, err := os.ReadFile(self)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(tmpName, data, 0o755); err != nil {
+			return err
+		}
+		if err := os.Rename(tmpName, dest); err != nil {
+			return err
+		}
+		return os.Chmod(dest, 0o755)
+	}
+
 	// Si ya estamos instalados, el ejecutable actual es el bueno.
 	if err := cli.CopyFile(self, dest); err != nil {
 		return err
 	}
 	return os.Chmod(dest, 0o755)
+}
+
+// sameFile dice si los dos paths son el mismo archivo.
+func sameFile(a, b string) bool {
+	infoA, err := os.Stat(a)
+	if err != nil {
+		return false
+	}
+	infoB, err := os.Stat(b)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(infoA, infoB)
 }
 
 // installSudoShim deja un wrapper en /usr/local/bin.

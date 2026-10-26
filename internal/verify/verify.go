@@ -80,7 +80,8 @@ func Run(paths cli.ToolPaths) error {
 		if path := cli.CommandPath(bin); path != "" {
 			row(true, bin, path)
 		} else {
-			row(false, bin, "no instalado")
+			row(false, bin, "falta (boot-preview install animation)")
+			failed++
 		}
 	}
 	if _, err := os.Stat("/usr/lib/plymouth/renderers/x11.so"); err == nil {
@@ -91,25 +92,44 @@ func Run(paths cli.ToolPaths) error {
 	}
 
 	// ── La config ──
+	//
+	// Solo se verifica lo que se instaló: los módulos son independientes
+	// (se puede instalar solo el de Plymouth, sin el de Limine).
 	fmt.Println()
 	fmt.Println("  Config")
-	if _, err := os.Stat(filepath.Join(paths.LoaderConfig(), "limine.conf")); err == nil {
-		row(true, "loader/limine.conf", "ok")
-	} else {
-		row(false, "loader/limine.conf", "no instalado")
-	}
-	if _, err := os.Stat(filepath.Join(paths.LoaderConfig(), "wallpaper", "wallpaper.png")); err == nil {
-		row(true, "loader/wallpaper", "ok")
-	} else {
-		row(false, "loader/wallpaper", "no instalado")
-	}
-	themeFile := filepath.Join(paths.AnimationConfig(), "theme")
-	if data, err := os.ReadFile(themeFile); err == nil {
-		row(true, "animation/theme", strings.TrimSpace(string(data)))
-	} else {
-		rowOptional("animation/theme", "sin tema propio (usa el del sistema)")
+
+	// Qué modulos hay que verificar. Si el state.json no esta (instalado
+	// a mano), se verifican los dos: es mejor avisar de mas que de menos.
+	hasLoader := true
+	hasAnimation := true
+	if hasState {
+		hasLoader = contains(st.Components, "loader")
+		hasAnimation = contains(st.Components, "animation")
 	}
 
+	if hasLoader {
+		if _, err := os.Stat(filepath.Join(paths.LoaderConfig(), "limine.conf")); err == nil {
+			row(true, "loader/limine.conf", "ok")
+		} else {
+			row(false, "loader/limine.conf", "falta (boot-preview install loader)")
+			failed++
+		}
+		if _, err := os.Stat(filepath.Join(paths.LoaderConfig(), "wallpaper", "wallpaper.png")); err == nil {
+			row(true, "loader/wallpaper", "ok")
+		} else {
+			row(false, "loader/wallpaper", "falta (boot-preview install loader)")
+			failed++
+		}
+	}
+
+	if hasAnimation {
+		themeFile := filepath.Join(paths.AnimationConfig(), "theme")
+		if data, err := os.ReadFile(themeFile); err == nil {
+			row(true, "animation/theme", strings.TrimSpace(string(data)))
+		} else {
+			rowOptional("animation/theme", "sin tema propio (usa el del sistema)")
+		}
+	}
 	// ── Cambios desde la instalación ──
 	if hasState && len(st.Deps) > 0 {
 		fmt.Println()
@@ -186,6 +206,16 @@ const (
 	colorDim  = "\033[38;2;146;136;158m"
 	colorOff  = "\033[0m"
 )
+
+// contains dice si la lista tiene ese elemento.
+func contains(list []string, s string) bool {
+	for _, item := range list {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
 
 // row imprime una línea de la tabla de verificación.
 func row(ok bool, name, value string) {
