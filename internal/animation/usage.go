@@ -48,6 +48,8 @@ TEMAS
   preview <tema>         Cambia el tema SOLO del preview
   use <tema>             Aplica el tema al SISTEMA (-R, regenera el
                          initramfs)
+  logo [imagen.png]      La imagen del splash: crea el tema b3l0w-splash
+                         con tu PNG. --reset vuelve al tema de CachyOS
 
 STEAM
   steam-source           Los videos de startup (cuál está activo)
