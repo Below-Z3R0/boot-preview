@@ -62,7 +62,7 @@ func Run(args []string, paths cli.ToolPaths) error {
 
 	if len(args) > 0 {
 		switch args[0] {
-		case "x11", "shot", "access", "sources", "preview", "use", "stop",
+		case "x11", "shot", "access", "sources", "preview", "use", "logo", "stop",
 			"status", "ping", "show", "hide", "reload", "update", "pause",
 			"unpause", "error", "quit",
 			"steam-source", "steam-convert", "steam-apply", "help", "-h", "--help":
@@ -102,6 +102,8 @@ func Run(args []string, paths cli.ToolPaths) error {
 		return cmdPreview(rest, paths)
 	case "use":
 		return cmdUse(rest, paths)
+	case "logo":
+		return cmdLogo(rest, paths)
 	case "steam-source":
 		return cmdSteamSource()
 	case "steam-convert":
